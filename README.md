@@ -2,7 +2,7 @@
 
 # 🚀 小小怪卡密验证系统 Pro
 
-### 🎯 全新一代卡密验证解决方案 - 即将震撼上线！
+### 🎯 全新一代卡密验证解决方案 - 即将震撼上线！-完全免费-团队维护更新
 
 [![Vue 3](https://img.shields.io/badge/Vue-3.5+-4FC08D?style=for-the-badge&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-7.1+-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
