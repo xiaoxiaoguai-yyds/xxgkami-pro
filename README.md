@@ -241,14 +241,11 @@ npm run preview
 ### 💬 **社区交流**
 - 🐛 [问题反馈](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/issues)
 - 💡 [功能建议](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/discussions)
-- 📧 邮箱：support@xxgkami.com
-- 🐧 QQ群：123456789
+- 📧 邮箱：xxgyyds@vip.qq.com
 
 ### 🌐 **官方链接**
-- 🏠 [官方网站](https://xxgkami.com)
-- 📖 [在线文档](https://docs.xxgkami.com)
-- 🎥 [视频教程](https://www.bilibili.com/xxgkami)
-- 📱 [微信公众号](https://mp.weixin.qq.com/xxgkami)
+- 🏠 [官方网站](https://xiaoxiaoguai-yyds.github.io/xxgkami.github.io/index.html)
+- 📖 [在线文档](https://xiaoxiaoguai-yyds.github.io/xxgkami.github.io/)
 
 ---
 
