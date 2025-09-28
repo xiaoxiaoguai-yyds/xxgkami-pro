@@ -11,7 +11,7 @@
 
 **🔥 采用最新技术栈重构，性能提升300%，用户体验全面升级！**
 
-[🌟 立即体验]([#快速开始](https://xiaoxiaoguai-yyds.github.io/web.xxgkami.github.io)) · [📖 查看文档](#使用文档) · [🐛 反馈问题](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/issues) · [💬 加入讨论](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/discussions)
+[🌟 立即体验](https://xiaoxiaoguai-yyds.github.io/web.xxgkami.github.io) · [📖 查看文档](#使用文档) · [🐛 反馈问题](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/issues) · [💬 加入讨论](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/discussions)
 
 </div>
 
