@@ -252,16 +252,6 @@ npm run preview
 
 ---
 
-## 📞 联系我们
-
-### 💬 **社区交流**
-- 🐛 [问题反馈](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/issues)
-- 💡 [功能建议](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/discussions)
-- 📧 邮箱：xxgyyds@vip.qq.com
-
-### 🌐 **官方链接**
-- 🏠 [官方网站](https://xiaoxiaoguai-yyds.github.io/xxgkami.github.io/index.html)
-- 📖 [在线文档](https://xiaoxiaoguai-yyds.github.io/xxgkami.github.io/)
 
 ---
 
