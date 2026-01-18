@@ -50,7 +50,7 @@ while true; do
             ;;
         3)
             echo -e "${YELLOW}正在更新脚本...${NC}"
-            wget -O install.sh https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/main/install.sh && chmod +x install.sh
+            wget -O install.sh https://ghfast.top/https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/main/install.sh && chmod +x install.sh
             echo -e "${GREEN}脚本更新完成，请重新运行 ./install.sh${NC}"
             exit 0
             ;;
