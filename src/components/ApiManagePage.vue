@@ -602,10 +602,10 @@ const interfaceConfig = reactive({
 
 // Helper to generate default URL
 const generateDefaultUrl = () => {
-  const host = window.location.hostname || 'localhost'
-  const port = '8080' // Assuming backend is on 8080 based on error logs
+  const protocol = window.location.protocol
+  const host = window.location.host
   const key = currentApiKey.value.key || '{api_key}'
-  return `http://${host}:${port}/api/custom/${key}/use`
+  return `${protocol}//${host}/api/custom/${key}/use`
 }
 
 watch(() => interfaceConfig.isCustomUrl, (isCustom) => {
