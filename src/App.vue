@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import HomePage from './components/HomePage.vue'
-import LoginForm from './components/LoginForm.vue'
+import LoginForm from './components/loginform.vue'
 import Dashboard from './components/Dashboard.vue'
 import UserPage from './components/UserPage.vue'
 import NotificationPage from './components/NotificationPage.vue'
