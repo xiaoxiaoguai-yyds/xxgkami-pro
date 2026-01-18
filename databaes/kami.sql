@@ -11,7 +11,7 @@
  Target Server Version : 90300 (9.3.0)
  File Encoding         : 65001
 
- Date: 16/01/2026 12:09:30
+ Date: 18/01/2026 10:26:53
 */
 
 SET NAMES utf8mb4;
@@ -36,7 +36,7 @@ CREATE TABLE `admins`  (
 -- ----------------------------
 -- Records of admins
 -- ----------------------------
-INSERT INTO `admins` VALUES (2, 'admin', '123456', '2025-05-20 08:18:44', '2026-01-16 10:37:40', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYWRtaW4iLCJ0eXBlIjoiYWNjZXNzIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3Njg1MzEwNTksImV4cCI6MTc2ODUzNDY1OX0.4LlyJ14HoDDbtu4RY9zUH35lO4PqcW3L0snFHCjQDOk', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYWRtaW4iLCJ0eXBlIjoicmVmcmVzaCIsInN1YiI6ImFkbWluIiwiaWF0IjoxNzY4NTMxMDYwLCJleHAiOjE3NjkxMzU4NjB9.1Ck4w_z-Iw2HboE-IOuYwykI6ZgPvViqDfxyQY2F3do');
+INSERT INTO `admins` VALUES (2, 'admin', '123456', '2025-05-20 08:18:44', '2026-01-16 10:37:40', NULL, NULL);
 
 -- ----------------------------
 -- Table structure for api_keys
@@ -53,8 +53,8 @@ CREATE TABLE `api_keys`  (
   `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注说明',
   `key_value` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'API Key',
-  `webhook_config` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL,
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `webhook_config` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `api_key`(`api_key` ASC) USING BTREE,
   UNIQUE INDEX `idx_api_key_value`(`key_value` ASC) USING BTREE
@@ -63,8 +63,8 @@ CREATE TABLE `api_keys`  (
 -- ----------------------------
 -- Records of api_keys
 -- ----------------------------
-INSERT INTO `api_keys` VALUES (3, '123', '8WAD3TN9YCUZivmDAdicvYs5Q7Hj0zcB', 1, '2025-05-13 15:44:55', '2025-05-13 17:42:27', 5, '123', '89c13e4b-ee08-11f0-bbca-088fc3fb7e69', 'API Key', '2026-01-10 17:47:21');
-INSERT INTO `api_keys` VALUES (4, '456', '1jTQXXpBBRMgdPjv63QpU29k4tUwCY78', 1, '2025-05-13 16:56:51', NULL, 0, '456', '89c14863-ee08-11f0-bbca-088fc3fb7e69', 'API Key', '2026-01-10 17:47:21');
+INSERT INTO `api_keys` VALUES (3, '123', '8WAD3TN9YCUZivmDAdicvYs5Q7Hj0zcB', 1, '2025-05-13 15:44:55', '2025-05-13 17:42:27', 5, '123', '89c13e4b-ee08-11f0-bbca-088fc3fb7e69', 'API Key', '2026-01-10 17:47:21', NULL);
+INSERT INTO `api_keys` VALUES (4, '456', '1jTQXXpBBRMgdPjv63QpU29k4tUwCY78', 1, '2025-05-13 16:56:51', NULL, 0, '456', '89c14863-ee08-11f0-bbca-088fc3fb7e69', 'API Key', '2026-01-17 21:36:55', NULL);
 
 -- ----------------------------
 -- Table structure for card_pricing
@@ -79,7 +79,7 @@ CREATE TABLE `card_pricing`  (
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 12 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 12 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of card_pricing
@@ -120,6 +120,7 @@ CREATE TABLE `cards`  (
   `creator_id` int NOT NULL COMMENT '创建者ID（对应admins表或users表的id）',
   `creator_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '创建者用户名',
   `ip_address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `api_key_id` bigint NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `card_key`(`card_key` ASC) USING BTREE,
   UNIQUE INDEX `encrypted_key`(`encrypted_key` ASC) USING BTREE,
@@ -132,35 +133,6 @@ CREATE TABLE `cards`  (
 -- ----------------------------
 -- Records of cards
 -- ----------------------------
-INSERT INTO `cards` VALUES (33, '5YuOiG1XqfI0WxMZTMki', '06807a70b85a77746c3052067dec9c0091048edb', 1, '2025-05-13 18:06:58', NULL, NULL, 30, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'admin', 1, '123', NULL);
-INSERT INTO `cards` VALUES (34, '2vGa8kN0Zy1S5uvGBxq9', '8ae5443059f81cb79e437b315384ea175aa78e0f', 1, '2025-05-13 18:06:58', NULL, NULL, 30, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'admin', 1, '123', NULL);
-INSERT INTO `cards` VALUES (35, 'XUensLpopa5vmkQYmPcS', '5b87fc13a67d2c8d21816343877d4b8a33cdd28e', 1, '2025-05-13 18:06:58', NULL, NULL, 30, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'admin', 1, '123', NULL);
-INSERT INTO `cards` VALUES (36, '5AalGilBh2K41VysoorW', '9a1e75a8ba87eef8c10bc735c6f76900e7d17656', 1, '2025-05-13 18:06:58', NULL, NULL, 30, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'admin', 1, '123', NULL);
-INSERT INTO `cards` VALUES (37, 'okvbwDm1av7dnBqaOfda', 'f03670f414711057a31ae35d2661f8a4ac647fa3', 1, '2025-05-13 18:06:58', NULL, NULL, 30, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'admin', 1, '123', NULL);
-INSERT INTO `cards` VALUES (39, '65510424E62C497B', '07d3147eae1243c4fa6c5a8f15cd99ed1415cda5', 0, '2026-01-10 17:12:34', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (40, 'A6886D90BC114B7C', '3be8632380e59c20f3cd9dde3bd59524a95e91d7', 1, '2026-01-10 17:58:03', '2026-01-10 18:15:40', NULL, 60, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (41, 'CA14BA7A0B084133', 'e926c0f16f59e72778b864d7832dcd168fecdbf1', 0, '2026-01-10 20:03:02', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 5, 'xxg', NULL);
-INSERT INTO `cards` VALUES (42, 'E821BB8A582D4C64', '9949f7a48dfd22a4038a8a6f45dc22915507c6ad', 0, '2026-01-16 10:54:53', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (43, 'A44649A288C441CD', '4b4f6861ca4c883bd8ff197b6aace92e62b395a6', 0, '2026-01-16 11:00:13', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (44, '322FA33298504FFF', 'c8bb5eacc87e659c0a551f9471c910edadf84baf', 0, '2026-01-16 11:00:54', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (45, '9CDE1463F0994750', '70e2f0f8f0a8163a919961880d09af073b796662', 0, '2026-01-16 11:01:23', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (46, '45F7822122FD4591', '09f292cc937b16da5e1bd0510ae10e4c6fdf22d3', 0, '2026-01-16 11:04:55', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (47, '84F73BF3D6344138', '726bab1c4ccbd18ff5d35694bc204aa8f4778dfe', 0, '2026-01-16 11:06:25', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (48, '2C2D162A75C34619', 'b6176792de0c1de26a5260916deb1e0259519d1b', 0, '2026-01-16 11:09:41', NULL, NULL, 15, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (49, '68C4EAD34D044AA8', 'b584727db2da10dd5065787a4429f3683a23b857', 0, '2026-01-16 11:13:58', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (50, '3B70396E10D34F16', 'a56875eeec32b3d35d1e63fe9cb54a5d3d6137d1', 0, '2026-01-16 11:18:55', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (51, '19131BBC6B964A94', 'b44d4399a4c44e659538122f6f729603fbb8a1cc', 0, '2026-01-16 11:22:15', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (52, '594C4442526A43A3', '8d04796f5372de574e55fc480e7b18c2b8717a3d', 0, '2026-01-16 11:37:45', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (53, 'FFE90A3183AF428D', '190b429b63bffc4ea2202af751ccdb6339e918d0', 0, '2026-01-16 11:39:17', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (54, 'FDE73AEF252B4C96', '3a4bc32cf86c823e94f4b85420183591d05f0258', 0, '2026-01-16 11:40:58', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (55, 'BD006EFBED894D0E', '7d09b7bb7fba77865875160b81949e2bf2136ae2', 0, '2026-01-16 11:43:25', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (56, '277A8182793C4BCA', '3e4070dcdcb66e1fadb7a346de577a2c33db10bd', 0, '2026-01-16 11:44:33', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (57, '6B7C23E016BF40BE', '6366d37db095b5bafa29013c25e40fd604b99e5b', 0, '2026-01-16 11:48:02', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (58, 'A94FFD2E8B754B1A', 'de2693e09747b61800bb6244568dc9ae1e84c44b', 0, '2026-01-16 11:48:32', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (59, 'C401BDB19AA54430', '5d2a04e57ad7357a143584083aed6e1e04dea5be', 0, '2026-01-16 11:52:52', NULL, NULL, 15, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (60, '65DC985AA1CC4B32', '2cdcba2687ea1c04893399dd585a99faaa0a1eb5', 0, '2026-01-16 11:59:37', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (61, 'DAD940D051544A91', '9f636862eefd006aad03455804564b94476e5831', 0, '2026-01-16 12:02:22', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
-INSERT INTO `cards` VALUES (62, '8F1D74C104DA42AC', 'f01f674a0effc8a72724c803a4752ac5cb3df020', 0, '2026-01-16 12:03:35', NULL, NULL, 7, 'web', 1, NULL, 'sha1', 'time', 0, 0, 'user', 2, 'demo', NULL);
 
 -- ----------------------------
 -- Table structure for features
@@ -234,36 +206,6 @@ CREATE TABLE `orders`  (
 -- ----------------------------
 -- Records of orders
 -- ----------------------------
-INSERT INTO `orders` VALUES (1, 'ORD20260110153702367', 1, 'demo', 'time', '30天时间卡', 1, 35.00, 35.00, 'completed', 'wechat', '2026-01-10 15:37:02', NULL, NULL, '5YuOiG1XqfI0WxMZTMki');
-INSERT INTO `orders` VALUES (2, 'ORD20260110154049791', 1, 'demo', 'time', '30天时间卡', 1, 35.00, 35.00, 'completed', 'wechat', '2026-01-10 15:40:49', NULL, NULL, '2vGa8kN0Zy1S5uvGBxq9');
-INSERT INTO `orders` VALUES (3, 'ORD20260110154451742', 2, 'demo', 'time', '30?', 1, 35.00, 35.00, 'completed', 'alipay', '2026-01-10 15:44:51', NULL, NULL, 'XUensLpopa5vmkQYmPcS');
-INSERT INTO `orders` VALUES (4, 'ORD20260110154623436', 1, 'demo', 'time', '30天时间卡', 1, 35.00, 35.00, 'completed', 'wechat', '2026-01-10 15:46:23', NULL, NULL, '5AalGilBh2K41VysoorW');
-INSERT INTO `orders` VALUES (5, 'ORD20260110154650650', 1, 'xxg', 'time', '30天时间卡', 1, 35.00, 35.00, 'completed', 'wechat', '2026-01-10 15:46:50', NULL, NULL, 'okvbwDm1av7dnBqaOfda');
-INSERT INTO `orders` VALUES (6, 'ORD20260110162159505', 1, 'demo', 'time', '7天时间卡', 1, 9.90, 9.90, 'completed', 'wechat', '2026-01-10 16:22:00', NULL, NULL, '389A3D2CA4934175');
-INSERT INTO `orders` VALUES (7, 'ORD20260110171234155', 2, 'demo', 'time', '7天时间卡', 1, 9.90, 9.90, 'completed', 'wechat', '2026-01-10 17:12:34', NULL, NULL, '65510424E62C497B');
-INSERT INTO `orders` VALUES (8, 'ORD20260110175803992', 2, 'demo', 'time', '60天时间卡', 1, 65.00, 65.00, 'completed', 'wechat', '2026-01-10 17:58:03', NULL, NULL, 'A6886D90BC114B7C');
-INSERT INTO `orders` VALUES (9, 'ORD20260110200301719', 5, 'xxg', 'time', '7天时间卡', 1, 9.90, 9.90, 'completed', 'wechat', '2026-01-10 20:03:02', NULL, NULL, 'CA14BA7A0B084133');
-INSERT INTO `orders` VALUES (10, 'ORD20260116105453388', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'wechat', '2026-01-16 10:54:53', NULL, NULL, 'E821BB8A582D4C64');
-INSERT INTO `orders` VALUES (11, 'ORD20260116110013387', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'wechat', '2026-01-16 11:00:13', NULL, NULL, 'A44649A288C441CD');
-INSERT INTO `orders` VALUES (12, 'ORD20260116110053887', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'failed', 'wechat', '2026-01-16 11:00:54', '2026-01-16 11:10:10', NULL, '322FA33298504FFF');
-INSERT INTO `orders` VALUES (13, 'ORD20260116110122115', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'failed', 'wechat', '2026-01-16 11:01:23', '2026-01-16 11:10:08', NULL, '9CDE1463F0994750');
-INSERT INTO `orders` VALUES (14, 'ORD20260116110455978', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'failed', 'wechat', '2026-01-16 11:04:55', '2026-01-16 11:10:06', NULL, '45F7822122FD4591');
-INSERT INTO `orders` VALUES (15, 'ORD20260116110625133', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'failed', 'wechat', '2026-01-16 11:06:25', '2026-01-16 11:10:04', NULL, '84F73BF3D6344138');
-INSERT INTO `orders` VALUES (16, 'ORD20260116110940143', 2, 'demo', 'time', '15天时间卡', 1, 18.80, 18.80, 'failed', 'wechat', '2026-01-16 11:09:41', '2026-01-16 11:10:02', NULL, '2C2D162A75C34619');
-INSERT INTO `orders` VALUES (17, 'ORD20260116111358341', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:13:58', NULL, NULL, '68C4EAD34D044AA8');
-INSERT INTO `orders` VALUES (18, 'ORD20260116111855562', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:18:55', NULL, NULL, '3B70396E10D34F16');
-INSERT INTO `orders` VALUES (19, 'ORD20260116112215346', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:22:15', NULL, NULL, '19131BBC6B964A94');
-INSERT INTO `orders` VALUES (20, 'ORD20260116113744831', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:37:45', NULL, NULL, '594C4442526A43A3');
-INSERT INTO `orders` VALUES (21, 'ORD20260116113917529', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:39:18', NULL, NULL, 'FFE90A3183AF428D');
-INSERT INTO `orders` VALUES (22, 'ORD20260116114058906', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:40:58', NULL, NULL, 'FDE73AEF252B4C96');
-INSERT INTO `orders` VALUES (23, 'ORD20260116114325322', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:43:25', NULL, NULL, 'BD006EFBED894D0E');
-INSERT INTO `orders` VALUES (24, 'ORD20260116114432105', 2, 'demo', 'time', '7天时间卡', 1, 10.90, 10.90, 'pending', 'alipay', '2026-01-16 11:44:33', NULL, NULL, '277A8182793C4BCA');
-INSERT INTO `orders` VALUES (25, 'ORD20260116114802818', 2, 'demo', 'time', '7天时间卡', 1, 0.01, 0.01, 'pending', 'alipay', '2026-01-16 11:48:02', NULL, NULL, '6B7C23E016BF40BE');
-INSERT INTO `orders` VALUES (26, 'ORD20260116114831763', 2, 'demo', 'time', '7天时间卡', 1, 0.01, 0.01, 'pending', 'alipay', '2026-01-16 11:48:32', NULL, NULL, 'A94FFD2E8B754B1A');
-INSERT INTO `orders` VALUES (27, 'ORD20260116115251119', 2, 'demo', 'time', '15天时间卡', 1, 0.02, 0.02, 'pending', 'alipay', '2026-01-16 11:52:52', NULL, NULL, 'C401BDB19AA54430');
-INSERT INTO `orders` VALUES (28, 'ORD20260116115936134', 2, 'demo', 'time', '7天时间卡', 1, 0.01, 0.01, 'pending', 'alipay', '2026-01-16 11:59:37', NULL, NULL, '65DC985AA1CC4B32');
-INSERT INTO `orders` VALUES (29, 'ORD20260116120221584', 2, 'demo', 'time', '7天时间卡', 1, 0.01, 0.01, 'pending', 'alipay', '2026-01-16 12:02:22', NULL, NULL, 'DAD940D051544A91');
-INSERT INTO `orders` VALUES (30, 'ORD20260116120334217', 2, 'demo', 'time', '7天时间卡', 1, 0.01, 0.01, 'pending', 'alipay', '2026-01-16 12:03:35', NULL, NULL, '8F1D74C104DA42AC');
 
 -- ----------------------------
 -- Table structure for settings
@@ -391,12 +333,12 @@ CREATE TABLE `system_maintenance`  (
   `email_subject` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `email_template` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of system_maintenance
 -- ----------------------------
-INSERT INTO `system_maintenance` VALUES (1, 0, '系统正在维护中，请稍后访问。', '待定', '', '系统维护通知', '系统将于 {time} 进行维护，预计维护时间 {duration}，请提前做好准备。');
+INSERT INTO `system_maintenance` VALUES (1, 0, '系统正在维护中，请稍后访问。', '8小时', '', '小小怪卡密系统维护通知', '');
 
 -- ----------------------------
 -- Table structure for user_api_keys
@@ -409,7 +351,7 @@ CREATE TABLE `user_api_keys`  (
   `assign_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `user_id`(`user_id` ASC, `api_key_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of user_api_keys
@@ -490,7 +432,7 @@ CREATE TABLE `verification_codes`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `email`(`email` ASC) USING BTREE,
   INDEX `code`(`code` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of verification_codes
