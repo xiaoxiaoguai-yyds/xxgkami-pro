@@ -16,9 +16,240 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo -e "${BLUE}================================================${NC}"
-echo -e "${BLUE}        XXG-KAMI-PRO 一键部署脚本 v1.0          ${NC}"
-echo -e "${BLUE}================================================${NC}"
+show_menu() {
+    clear
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "${BLUE}        XXG-KAMI-PRO 一键部署脚本 v1.0          ${NC}"
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "欢迎使用小小怪卡密管理系统安装脚本！"
+    echo -e "开源地址: https://github.com/xiaoxiaoguai-yyds/xxgkami-pro"
+    echo -e "管理系统售后群: 1050160397"
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "1. 安装系统 (全新安装)"
+    echo -e "2. 更新系统 (保留数据更新)"
+    echo -e "3. 更新本脚本"
+    echo -e "4. 单独安装管理命令 (xxgkami)"
+    echo -e "0. 退出"
+    echo -e "${BLUE}================================================${NC}"
+    read -p "请输入选项 [0-4]: " MENU_CHOICE
+}
+
+# 循环显示菜单，直到选择安装/更新或退出
+while true; do
+    show_menu
+    case $MENU_CHOICE in
+        1)
+            echo -e "${GREEN}开始全新安装流程...${NC}"
+            break # 跳出循环，继续执行后面的安装逻辑
+            ;;
+        2)
+            echo -e "${GREEN}开始系统更新流程...${NC}"
+            # 标记为更新模式，后续逻辑可据此跳过部分步骤（如数据库初始化）
+            IS_UPDATE_MODE=true
+            break # 跳出循环，继续执行后面的安装逻辑
+            ;;
+        3)
+            echo -e "${YELLOW}正在更新脚本...${NC}"
+            wget -O install.sh https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/main/install.sh && chmod +x install.sh
+            echo -e "${GREEN}脚本更新完成，请重新运行 ./install.sh${NC}"
+            exit 0
+            ;;
+        4)
+            # 定义安装目录变量，因为后续生成脚本需要
+            INSTALL_DIR="/var/www/xxgkami-pro"
+            # 默认中国网络环境，如果需要检测可以在这里添加
+            IS_CHINA=true 
+            
+            # 直接跳转到生成管理脚本的部分
+            # 我们可以将管理脚本生成封装成函数，或者在这里直接写入
+            # 为了简单起见，我们复制后面的生成逻辑，或者直接跳转
+            # 但 Bash 不支持 GOTO，所以我们把生成逻辑封装成函数最好
+            # 这里先临时定义一个变量来控制流程
+            ONLY_INSTALL_CMD=true
+            break
+            ;;
+        0)
+            echo -e "${GREEN}感谢使用，再见！${NC}"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}无效选项，请重新输入${NC}"
+            sleep 1
+            ;;
+    esac
+done
+
+if [ "$ONLY_INSTALL_CMD" == "true" ]; then
+    # 8. 安装管理脚本
+    echo -e "${YELLOW}正在安装 xxgkami 管理命令...${NC}"
+    cat > /usr/local/bin/xxgkami <<EOF
+#!/bin/bash
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+INSTALL_DIR="$INSTALL_DIR"
+IS_CHINA=$IS_CHINA
+
+while true; do
+    clear
+    echo -e "\${BLUE}================================================\${NC}"
+    echo -e "\${BLUE}           XXG-KAMI-PRO 管理脚本                \${NC}"
+    echo -e "\${BLUE}================================================\${NC}"
+    echo -e "1. 启动服务 (Backend + Nginx)"
+    echo -e "2. 停止服务"
+    echo -e "3. 重启服务"
+    echo -e "4. 查看后端日志"
+    echo -e "5. 查看 Nginx 日志"
+    echo -e "6. 更新项目 (git pull + build)"
+    echo -e "7. 数据库连接信息"
+    echo -e "8. 强制重置 SSL 证书"
+    echo -e "9. 卸载系统"
+    echo -e "0. 退出"
+    echo -e "\${BLUE}================================================\${NC}"
+    read -p "请输入选项 [0-9]: " choice
+    
+    case \$choice in
+        1)
+            systemctl start xxgkami
+            systemctl start nginx
+            echo -e "\${GREEN}服务已启动\${NC}"
+            ;;
+        2)
+            systemctl stop xxgkami
+            systemctl stop nginx
+            echo -e "\${GREEN}服务已停止\${NC}"
+            ;;
+        3)
+            systemctl restart xxgkami
+            systemctl restart nginx
+            echo -e "\${GREEN}服务已重启\${NC}"
+            ;;
+        4)
+            journalctl -u xxgkami -f -n 50
+            ;;
+        5)
+            tail -f /var/log/nginx/error.log
+            ;;
+        6)
+            echo -e "\${YELLOW}正在拉取最新代码...\${NC}"
+            cd \$INSTALL_DIR
+            git pull
+            
+            echo -e "\${YELLOW}重新编译后端...\${NC}"
+            cd backend
+            if [ "\$IS_CHINA" = true ]; then
+                 mkdir -p ~/.m2
+            fi
+            mvn clean package -DskipTests
+            systemctl restart xxgkami
+            
+            echo -e "\${YELLOW}重新编译前端...\${NC}"
+            cd ..
+            # 自动修正环境配置
+            if [ -f ".env.production" ]; then
+                sed -i 's|VITE_API_BASE_URL=.*|VITE_API_BASE_URL=/api|g' .env.production
+            else
+                echo "VITE_API_BASE_URL=/api" > .env.production
+            fi
+            
+            if [ "\$IS_CHINA" = true ]; then
+                npm install --registry=https://registry.npmmirror.com
+            else
+                npm install
+            fi
+            npm run build
+            cp -r dist/* /usr/share/nginx/html/
+            echo -e "\${GREEN}项目更新完成\${NC}"
+            ;;
+        7)
+            echo -e "\${YELLOW}数据库配置信息:\${NC}"
+            grep "spring.datasource" \$INSTALL_DIR/backend/src/main/resources/application.properties
+            read -p "按回车键继续..."
+            ;;
+        8)
+             echo -e "\${YELLOW}正在续签 SSL 证书...\${NC}"
+             certbot renew --force-renewal
+             systemctl reload nginx
+             echo -e "\${GREEN}证书续签尝试完成\${NC}"
+             ;;
+        9)
+            echo -e "\${RED}警告: 此操作将完全删除以下内容：\${NC}"
+            echo -e "  - 后端服务与文件"
+            echo -e "  - 前端静态文件"
+            echo -e "  - 数据库 (kami)"
+            echo -e "  - Nginx 配置"
+            echo -e "  - 本地安装脚本 (install.sh)"
+            read -p "确认要卸载吗？请输入 'yes' 确认: " CONFIRM_UNINSTALL
+            if [ "\$CONFIRM_UNINSTALL" == "yes" ]; then
+                echo -e "\${YELLOW}正在停止服务...\${NC}"
+                systemctl stop xxgkami
+                systemctl disable xxgkami
+                rm /etc/systemd/system/xxgkami.service
+                systemctl daemon-reload
+                
+                echo -e "\${YELLOW}删除文件...\${NC}"
+                rm -rf \$INSTALL_DIR
+                rm -rf /usr/share/nginx/html/*
+                rm -f /etc/nginx/conf.d/xxgkami.conf
+                systemctl reload nginx
+                
+                # 尝试删除用户当前目录下的 git clone 文件夹
+                if [ -d "xxgkami-pro" ]; then
+                     echo -e "\${YELLOW}删除当前目录下的源码文件夹 (xxgkami-pro)...\${NC}"
+                     rm -rf xxgkami-pro
+                elif [ -d "/root/xxgkami-pro" ]; then
+                     echo -e "\${YELLOW}删除 /root/xxgkami-pro 源码文件夹...\${NC}"
+                     rm -rf /root/xxgkami-pro
+                fi
+                
+                echo -e "\${YELLOW}删除数据库...\${NC}"
+                read -p "请输入 MySQL root 密码以删除数据库: " DB_PWD
+                mysql -uroot -p"\$DB_PWD" -e "DROP DATABASE IF EXISTS kami;" 2>/dev/null
+                
+                echo -e "\${YELLOW}删除安装脚本...\${NC}"
+                # 尝试删除当前目录下的 install.sh，假设用户是在当前目录运行的
+                # 但管理脚本是在 /usr/local/bin 运行的，所以无法直接知道 install.sh 在哪
+                # 不过通常用户是在 root 或 home 目录下载的
+                if [ -f "install.sh" ]; then
+                    rm -f install.sh
+                elif [ -f "/root/install.sh" ]; then
+                    rm -f /root/install.sh
+                fi
+
+                echo -e "\${GREEN}卸载完成！\${NC}"
+                echo -e "\${BLUE}================================================\${NC}"
+                echo -e "\${GREEN}感谢您使用小小怪卡密管理系统！\${NC}"
+                echo -e "山水有相逢，愿我们在代码的世界里再次相遇。"
+                echo -e "项目开源地址: https://github.com/xiaoxiaoguai-yyds/xxgkami-pro"
+                echo -e "管理系统售后群: 1050160397"
+                echo -e "\${BLUE}================================================\${NC}"
+                
+                # 删除脚本自身
+                rm -f /usr/local/bin/xxgkami
+                exit 0
+            else
+                echo -e "\${YELLOW}取消卸载\${NC}"
+            fi
+            ;;
+        0)
+            exit 0
+            ;;
+        *)
+            echo -e "\${RED}无效选项\${NC}"
+            ;;
+    esac
+    
+    if [ "\$choice" != "0" ] && [ "\$choice" != "4" ] && [ "\$choice" != "5" ]; then
+        read -p "按回车键返回菜单..."
+    fi
+done
+EOF
+    chmod +x /usr/local/bin/xxgkami
+    echo -e "${GREEN}管理脚本已安装! 输入 'xxgkami' 即可使用。${NC}"
+    exit 0
+fi
 
 # 0. 环境选择 (Dev/Prod)
 echo -e "${YELLOW}[0/8] 环境选择...${NC}"
@@ -680,8 +911,157 @@ EOF
     fi
 fi
 
-# 8. 健康检查
-echo -e "${YELLOW}[8/8] 执行健康检查...${NC}"
+# 8. 安装管理脚本
+echo -e "${YELLOW}[8/9] 安装 xxgkami 管理命令...${NC}"
+cat > /usr/local/bin/xxgkami <<EOF
+#!/bin/bash
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+INSTALL_DIR="$INSTALL_DIR"
+IS_CHINA=$IS_CHINA
+
+while true; do
+    clear
+    echo -e "\${BLUE}================================================\${NC}"
+    echo -e "\${BLUE}           XXG-KAMI-PRO 管理脚本                \${NC}"
+    echo -e "\${BLUE}================================================\${NC}"
+    echo -e "1. 启动服务 (Backend + Nginx)"
+    echo -e "2. 停止服务"
+    echo -e "3. 重启服务"
+    echo -e "4. 查看后端日志"
+    echo -e "5. 查看 Nginx 日志"
+    echo -e "6. 更新项目 (git pull + build)"
+    echo -e "7. 数据库连接信息"
+    echo -e "8. 强制重置 SSL 证书"
+    echo -e "9. 卸载系统"
+    echo -e "0. 退出"
+    echo -e "\${BLUE}================================================\${NC}"
+    read -p "请输入选项 [0-9]: " choice
+    
+    case \$choice in
+        1)
+            systemctl start xxgkami
+            systemctl start nginx
+            echo -e "\${GREEN}服务已启动\${NC}"
+            ;;
+        2)
+            systemctl stop xxgkami
+            systemctl stop nginx
+            echo -e "\${GREEN}服务已停止\${NC}"
+            ;;
+        3)
+            systemctl restart xxgkami
+            systemctl restart nginx
+            echo -e "\${GREEN}服务已重启\${NC}"
+            ;;
+        4)
+            journalctl -u xxgkami -f -n 50
+            ;;
+        5)
+            tail -f /var/log/nginx/error.log
+            ;;
+        6)
+            echo -e "\${YELLOW}正在拉取最新代码...\${NC}"
+            cd \$INSTALL_DIR
+            git pull
+            
+            echo -e "\${YELLOW}重新编译后端...\${NC}"
+            cd backend
+            if [ "\$IS_CHINA" = true ]; then
+                 mkdir -p ~/.m2
+            fi
+            mvn clean package -DskipTests
+            systemctl restart xxgkami
+            
+            echo -e "\${YELLOW}重新编译前端...\${NC}"
+            cd ..
+            # 自动修正环境配置
+            if [ -f ".env.production" ]; then
+                sed -i 's|VITE_API_BASE_URL=.*|VITE_API_BASE_URL=/api|g' .env.production
+            else
+                echo "VITE_API_BASE_URL=/api" > .env.production
+            fi
+            
+            if [ "\$IS_CHINA" = true ]; then
+                npm install --registry=https://registry.npmmirror.com
+            else
+                npm install
+            fi
+            npm run build
+            cp -r dist/* /usr/share/nginx/html/
+            echo -e "\${GREEN}项目更新完成\${NC}"
+            ;;
+        7)
+            echo -e "\${YELLOW}数据库配置信息:\${NC}"
+            grep "spring.datasource" \$INSTALL_DIR/backend/src/main/resources/application.properties
+            read -p "按回车键继续..."
+            ;;
+        8)
+             echo -e "\${YELLOW}正在续签 SSL 证书...\${NC}"
+             certbot renew --force-renewal
+             systemctl reload nginx
+             echo -e "\${GREEN}证书续签尝试完成\${NC}"
+             ;;
+        9)
+            echo -e "\${RED}警告: 此操作将完全删除以下内容：\${NC}"
+            echo -e "  - 后端服务与文件"
+            echo -e "  - 前端静态文件"
+            echo -e "  - 数据库 (kami)"
+            echo -e "  - Nginx 配置"
+            read -p "确认要卸载吗？请输入 'yes' 确认: " CONFIRM_UNINSTALL
+            if [ "\$CONFIRM_UNINSTALL" == "yes" ]; then
+                echo -e "\${YELLOW}正在停止服务...\${NC}"
+                systemctl stop xxgkami
+                systemctl disable xxgkami
+                rm /etc/systemd/system/xxgkami.service
+                systemctl daemon-reload
+                
+                echo -e "\${YELLOW}删除文件...\${NC}"
+                rm -rf \$INSTALL_DIR
+                rm -rf /usr/share/nginx/html/*
+                rm -f /etc/nginx/conf.d/xxgkami.conf
+                systemctl reload nginx
+                
+                echo -e "\${YELLOW}删除数据库...\${NC}"
+                read -p "请输入 MySQL root 密码以删除数据库: " DB_PWD
+                mysql -uroot -p"\$DB_PWD" -e "DROP DATABASE IF EXISTS kami;" 2>/dev/null
+                
+                echo -e "\${GREEN}卸载完成！\${NC}"
+                echo -e "\${BLUE}================================================\${NC}"
+                echo -e "\${GREEN}感谢您使用小小怪卡密管理系统！\${NC}"
+                echo -e "山水有相逢，愿我们在代码的世界里再次相遇。"
+                echo -e "项目开源地址: https://github.com/xiaoxiaoguai-yyds/xxgkami-pro"
+                echo -e "管理系统售后群: 1050160397"
+                echo -e "\${BLUE}================================================\${NC}"
+                
+                # 删除脚本自身
+                rm -f /usr/local/bin/xxgkami
+                exit 0
+            else
+                echo -e "\${YELLOW}取消卸载\${NC}"
+            fi
+            ;;
+        0)
+            exit 0
+            ;;
+        *)
+            echo -e "\${RED}无效选项\${NC}"
+            ;;
+    esac
+    
+    if [ "\$choice" != "0" ] && [ "\$choice" != "4" ] && [ "\$choice" != "5" ]; then
+        read -p "按回车键返回菜单..."
+    fi
+done
+EOF
+chmod +x /usr/local/bin/xxgkami
+echo -e "${GREEN}管理脚本已安装! 部署完成后输入 'xxgkami' 即可使用。${NC}"
+
+# 9. 健康检查
+echo -e "${YELLOW}[9/9] 执行健康检查...${NC}"
 sleep 30 # 等待服务启动
 
 # 检查后端 API
