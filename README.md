@@ -1,8 +1,10 @@
 <div align="center">
 
+<img src="src/assets/icon.gif" alt="icon" width="120" />
+
 # 🚀 小小怪卡密验证系统 Pro
 
-### 🎯 全新一代卡密验证解决方案 - 即将震撼上线！-完全免费-团队维护更新
+### 🎯 全新一代卡密验证解决方案 - 正式发布！-完全免费-团队维护更新
 
 [![Vue 3](https://img.shields.io/badge/Vue-3.5+-4FC08D?style=for-the-badge&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-7.1+-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -38,19 +40,20 @@ curl -O https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/hea
 
 ---
 
-### 方式二：Docker 容器化部署
+### 方式二：Docker 容器化部署 (即将上线 🚧)
 
 适用于熟悉 Docker 的用户，环境隔离，快速启动。
+
+> ⚠️ **注意**：Docker 镜像构建流程正在优化中，敬请期待！
 
 1. **安装 Docker & Docker Compose**
 2. **下载 docker-compose.yml**
 3. **启动服务**
 
 ```bash
-docker-compose up -d
+# 即将支持
+# docker-compose up -d
 ```
-
-访问 `http://localhost:80` 即可使用。
 
 ---
 
@@ -108,24 +111,25 @@ docker-compose up -d
 ## 📊 功能模块
 
 ### 🎛️ **管理员后台**
-- 📈 **数据概览** - 实时统计面板
-- 🔑 **卡密管理** - 生成、编辑、批量操作
-- 📋 **订单管理** - 订单处理、状态跟踪
-- 🔌 **API管理** - 接口密钥、调用统计
-- ⚙️ **系统设置** - 参数配置、权限管理
+- 📈 **数据概览** - 实时统计面板，掌控全局数据
+- 🔑 **卡密管理** - 批量生成、导出、状态管理，支持多种卡密类型
+- 📋 **订单管理** - 订单实时监控、状态跟踪、补单操作
+- 🔌 **API管理** - 接口密钥生成、权限控制、WebHook回调配置
+- ⚙️ **系统设置** - 网站信息配置、支付接口对接、邮件通知设置
+- 🛡️ **安全中心** - IP黑白名单、访问日志审计
 
 ### 👤 **用户中心**
-- 🏠 **个人面板** - 账户信息、使用统计
-- 🛒 **购买中心** - 卡密商城、在线支付
-- 📱 **卡密验证** - 快速验证、使用记录
-- 💰 **钱包管理** - 余额充值、消费记录
-- 🎫 **我的卡密** - 已购卡密、使用状态
+- 🏠 **个人面板** - 账户信息概览、近期活动记录
+- 🛒 **购买中心** - 在线选购卡密、支持多种支付方式
+- 📱 **卡密验证** - 快速验证卡密有效性、查看使用说明
+- 💰 **钱包管理** - 余额充值、消费明细查询
+- 🎫 **我的卡密** - 已购卡密历史记录、一键复制
 
-### 🔌 **API接口**
-- ✅ **卡密验证** - 多种验证方式
-- 📊 **数据查询** - 使用统计、状态查询
-- 🔔 **回调通知** - 实时状态推送
-- 🛡️ **安全认证** - 签名验证、IP白名单
+### 🔌 **开发者接口**
+- ✅ **卡密验证 API** - 标准化 RESTful 接口，轻松集成
+- 📊 **状态查询 API** - 实时查询卡密状态和剩余次数/时间
+- 🔔 **WebHook 回调** - 卡密核销实时推送通知
+- 🛡️ **安全认证** - 支持 API Key 签名认证，保障数据安全
 
 ---
 
@@ -213,7 +217,8 @@ docker-compose up -d
 ### 💬 **社区交流**
 - 🐛 [问题反馈](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/issues)
 - 💡 [功能建议](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/discussions)
-- 📧 邮箱：xxgyyds@vip.qq.com
+- � **官方交流群**：`1050160397` (售后/技术支持)
+- �📧 **联系邮箱**：`xxgyyds@vip.qq.com`
 
 ### 🌐 **官方链接**
 - 🏠 [官方网站](https://xiaoxiaoguai-yyds.github.io/xxgkami.github.io/index.html)
