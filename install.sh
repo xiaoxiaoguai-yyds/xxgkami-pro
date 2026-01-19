@@ -317,7 +317,7 @@ if curl -s --connect-timeout 5 https://www.google.com > /dev/null; then
 else
     echo -e "${GREEN}检测到国内网络环境，使用 Gitee 源${NC}"
     IS_CHINA=true
-    GIT_REPO="https://gitee.com/xxg-yyds/xxgkami-pro.git"
+    GIT_REPO="https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro.git"
 fi
 
 # 2. 系统检测与基础依赖安装 (MySQL 8.0+, JDK 17, Node 18, Nginx)
@@ -587,17 +587,58 @@ done
 # 创建数据库并导入数据
 SQL_FILE="$INSTALL_DIR/databaes/kami.sql"
 
+# 修正可能存在的路径拼写问题
+if [ ! -f "$SQL_FILE" ] && [ -f "$INSTALL_DIR/database/kami.sql" ]; then
+    SQL_FILE="$INSTALL_DIR/database/kami.sql"
+fi
+
 if [ -f "$SQL_FILE" ]; then
-    echo -e "${GREEN}正在导入数据库...${NC}"
-    mysql -u$DB_USER -p"$DB_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS $DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;"
-    mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME < $SQL_FILE
+    if [ "$IS_UPDATE_MODE" == "true" ]; then
+        echo -e "${YELLOW}正在执行数据库智能更新...${NC}"
+        TEMP_DB="kami_update_temp_$(date +%s)"
+        
+        # 1. 创建临时数据库
+        echo -e "${BLUE}创建临时数据库 $TEMP_DB...${NC}"
+        mysql -u$DB_USER -p"$DB_PASSWORD" -e "CREATE DATABASE $TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;"
+        
+        # 2. 导入新版 SQL 到临时数据库
+        echo -e "${BLUE}导入新版数据到临时库...${NC}"
+        mysql -u$DB_USER -p"$DB_PASSWORD" $TEMP_DB < "$SQL_FILE"
+        
+        # 3. 同步表结构 (新增表)
+        echo -e "${BLUE}检查新增表...${NC}"
+        # 获取临时库的所有表名
+        TEMP_TABLES=$(mysql -u$DB_USER -p"$DB_PASSWORD" -N -B -e "SHOW TABLES FROM $TEMP_DB")
+        
+        for TABLE in $TEMP_TABLES; do
+            # 检查目标库是否存在该表
+            TABLE_EXISTS=$(mysql -u$DB_USER -p"$DB_PASSWORD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME' AND table_name = '$TABLE';")
+            
+            if [ "$TABLE_EXISTS" -eq 0 ]; then
+                echo -e "${GREEN}检测到新增表: $TABLE，正在创建...${NC}"
+                # 从临时库导出该表结构和数据，导入到目标库
+                mysqldump -u$DB_USER -p"$DB_PASSWORD" $TEMP_DB $TABLE | mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME
+            else
+                # 4. 同步数据 (新增行) - 仅对存在的表执行插入
+                # 使用 INSERT IGNORE 避免主键冲突，保留现有数据
+                # echo -e "${BLUE}检查表 $TABLE 数据更新...${NC}"
+                mysqldump -u$DB_USER -p"$DB_PASSWORD" --no-create-info --insert-ignore --complete-insert $TEMP_DB $TABLE | mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME
+            fi
+        done
+        
+        echo -e "${GREEN}数据库增量更新完成!${NC}"
+        
+        # 5. 清理临时数据库
+        echo -e "${BLUE}清理临时数据库...${NC}"
+        mysql -u$DB_USER -p"$DB_PASSWORD" -e "DROP DATABASE $TEMP_DB;"
+        
+    else
+        echo -e "${GREEN}正在导入数据库...${NC}"
+        mysql -u$DB_USER -p"$DB_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS $DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;"
+        mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME < "$SQL_FILE"
+    fi
 else
     echo -e "${RED}错误：找不到数据库文件 $SQL_FILE${NC}"
-    # 尝试查找其他位置
-    if [ -f "$INSTALL_DIR/database/kami.sql" ]; then
-        mysql -u$DB_USER -p"$DB_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS $DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;"
-        mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME < "$INSTALL_DIR/database/kami.sql"
-    fi
 fi
 
 # 修改后端配置
