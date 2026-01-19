@@ -1129,7 +1129,20 @@ fi
 echo -e "${BLUE}================================================${NC}"
 echo -e "${GREEN}      部署流程结束      ${NC}"
 echo -e "${BLUE}================================================${NC}"
-echo -e "访问地址: http://$(curl -s ifconfig.me)"
+# 构建访问地址
+CURRENT_IP=$(curl -s ifconfig.me)
+if [ -n "$USER_DOMAIN" ]; then
+    PROTOCOL="http"
+    if [ "$HTTPS_CHOICE" == "y" ] || [ "$HTTPS_CHOICE" == "Y" ]; then
+        PROTOCOL="https"
+    fi
+    SITE_URL="${PROTOCOL}://${USER_DOMAIN}"
+else
+    SITE_URL="http://${CURRENT_IP}"
+fi
+
+echo -e "用户端地址: ${SITE_URL}"
+echo -e "管理端地址: ${SITE_URL}/#/admin"
 echo -e "------------------------------------------------"
 echo -e "默认管理员账号: admin"
 echo -e "默认管理员密码: 123465"
