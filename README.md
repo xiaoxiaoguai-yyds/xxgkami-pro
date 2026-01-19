@@ -222,15 +222,15 @@ curl -O https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/hea
 
 ### 🌐 **开源地址**
 - 🐙 **GitHub**: [https://github.com/xiaoxiaoguai-yyds/xxgkami-pro](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro)
-- 🔴 **Gitee**: [https://gitee.com/xxg-yyds/xxgkami-pro](https://gitee.com/xxg-yyds/xxgkami-pro)
-- 🚀 **GitCode**: [https://gitcode.com/xxgyyds/xxgkami-pro](https://gitcode.com/xxgyyds/xxgkami-pro)
+- 🔴 **Gitee**: [https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro](https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro)
+- 🚀 **GitCode**: [https://atomgit.com/xiaoxiaoguai-yyds/xxgkami-pro](https://atomgit.com/xiaoxiaoguai-yyds/xxgkami-pro)
 
 ### 🌐 **官方链接**
 - 🏠 [官方网站](https://xiaoxiaoguai-yyds.github.io/xxgkami.github.io/index.html)
 - 📖 [在线文档](https://xiaoxiaoguai-yyds.github.io/xxgkami.github.io/)
 - 🐱 [GitHub 仓库](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro)
-- 🔴 [Gitee 仓库](https://gitee.com/xxg-yyds/xxgkami-pro)
-- 🚀 [GitCode 仓库](https://gitcode.com/xxgyyds/xxgkami-pro)
+- 🔴 [Gitee 仓库](https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro)
+- 🚀 [GitCode 仓库](https://atomgit.com/xiaoxiaoguai-yyds/xxgkami-pro)
 
 ---
 
