@@ -50,7 +50,7 @@ while true; do
             ;;
         3)
             echo -e "${YELLOW}正在更新脚本...${NC}"
-            wget -O install.sh https://ghfast.top/https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/main/install.sh && chmod +x install.sh
+            wget -O install.sh https://ghfast.top/https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/heads/master/install.sh && chmod +x install.sh
             echo -e "${GREEN}脚本更新完成，请重新运行 ./install.sh${NC}"
             exit 0
             ;;
@@ -323,6 +323,48 @@ fi
 # 2. 系统检测与基础依赖安装 (MySQL 8.0+, JDK 17, Node 18, Nginx)
 echo -e "${YELLOW}[2/8] 安装基础依赖 (MySQL 8.0+, JDK 17, Node 18, Nginx)...${NC}"
 
+check_mysql_version() {
+    echo -e "${YELLOW}[前置检查] 验证 MySQL 版本兼容性...${NC}"
+    if ! command -v mysql >/dev/null 2>&1; then
+        echo -e "${YELLOW}未检测到 MySQL 已安装，后续将尝试自动安装 MySQL 8.0${NC}"
+        return 0
+    fi
+    
+    local mysql_ver_str=$(mysql -V 2>&1)
+    # 尝试提取版本号 (优先匹配 Distrib x.x, 其次 Ver x.x)
+    local mysql_ver=$(echo "$mysql_ver_str" | sed -n 's/.*Distrib \([0-9]\+\.[0-9]\+\).*/\1/p')
+    if [ -z "$mysql_ver" ]; then
+        mysql_ver=$(echo "$mysql_ver_str" | sed -n 's/.*Ver \([0-9]\+\.[0-9]\+\).*/\1/p')
+    fi
+    
+    local required_ver="8.0"
+    
+    if [ -z "$mysql_ver" ]; then
+         echo -e "${YELLOW}警告: 无法识别当前 MySQL 版本，跳过检查。${NC}"
+         return 0
+    fi
+
+    echo -e "当前 MySQL 版本: ${mysql_ver}"
+    echo -e "要求 MySQL 版本: ${required_ver}+"
+    
+    # 版本对比 (使用 awk)
+    if awk "BEGIN {exit !($mysql_ver >= $required_ver)}"; then
+        echo -e "${GREEN}MySQL 版本符合要求${NC}"
+        return 0
+    else
+        echo -e "${RED}MySQL 版本不符合要求!${NC}"
+        echo -e "${YELLOW}警告: 强制执行可能会对其他项目造成影响 (可能导致数据库不兼容或服务中断)!${NC}"
+        read -p "是否强制继续安装? (y/n): " FORCE_MYSQL
+        if [ "$FORCE_MYSQL" == "y" ] || [ "$FORCE_MYSQL" == "Y" ]; then
+            echo -e "${YELLOW}已选择强制继续安装...${NC}"
+            return 0
+        else
+            echo -e "${RED}安装已取消${NC}"
+            exit 1
+        fi
+    fi
+}
+
 check_java() {
     if java -version >/dev/null 2>&1; then
         # 获取 Java 版本号 (例如 17.0.1 -> 17)
@@ -407,6 +449,9 @@ install_mysql8_rhel() {
     echo -e "${YELLOW}MySQL 初始临时密码: $TEMP_PASS${NC}"
     echo -e "${YELLOW}请务必在脚本运行后尽快修改密码!${NC}"
 }
+
+# 执行 MySQL 版本检查
+check_mysql_version
 
 if [ -f /etc/debian_version ]; then
     # Debian/Ubuntu
@@ -1085,5 +1130,9 @@ echo -e "${BLUE}================================================${NC}"
 echo -e "${GREEN}      部署流程结束      ${NC}"
 echo -e "${BLUE}================================================${NC}"
 echo -e "访问地址: http://$(curl -s ifconfig.me)"
+echo -e "------------------------------------------------"
+echo -e "默认管理员账号: admin"
+echo -e "默认管理员密码: 123465"
+echo -e "------------------------------------------------"
 echo -e "后端服务状态: systemctl status xxgkami"
 echo -e "Nginx状态: systemctl status nginx"

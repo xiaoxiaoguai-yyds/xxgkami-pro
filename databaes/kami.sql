@@ -11,7 +11,7 @@
  Target Server Version : 90300 (9.3.0)
  File Encoding         : 65001
 
- Date: 18/01/2026 10:26:53
+ Date: 19/01/2026 09:39:10
 */
 
 SET NAMES utf8mb4;
@@ -63,8 +63,6 @@ CREATE TABLE `api_keys`  (
 -- ----------------------------
 -- Records of api_keys
 -- ----------------------------
-INSERT INTO `api_keys` VALUES (3, '123', '8WAD3TN9YCUZivmDAdicvYs5Q7Hj0zcB', 1, '2025-05-13 15:44:55', '2025-05-13 17:42:27', 5, '123', '89c13e4b-ee08-11f0-bbca-088fc3fb7e69', 'API Key', '2026-01-10 17:47:21', NULL);
-INSERT INTO `api_keys` VALUES (4, '456', '1jTQXXpBBRMgdPjv63QpU29k4tUwCY78', 1, '2025-05-13 16:56:51', NULL, 0, '456', '89c14863-ee08-11f0-bbca-088fc3fb7e69', 'API Key', '2026-01-17 21:36:55', NULL);
 
 -- ----------------------------
 -- Table structure for card_pricing
@@ -229,11 +227,11 @@ INSERT INTO `settings` VALUES (4, 'contact_qq_group', '123456789');
 INSERT INTO `settings` VALUES (5, 'contact_wechat_qr', 'assets/images/wechat-qr.jpg');
 INSERT INTO `settings` VALUES (6, 'contact_email', 'support@example.com');
 INSERT INTO `settings` VALUES (7, 'api_enabled', '1');
-INSERT INTO `settings` VALUES (8, 'api_key', 'c3d01e574865a180a20f71c4a0e41c07');
-INSERT INTO `settings` VALUES (9, 'smtp_server', 'smtp.qq.com');
-INSERT INTO `settings` VALUES (10, 'smtp_port', '465');
-INSERT INTO `settings` VALUES (11, 'smtp_email', 'xxgyyds@vip.qq.com');
-INSERT INTO `settings` VALUES (12, 'smtp_password', 'zhckdqaqydmddjgb');
+INSERT INTO `settings` VALUES (8, 'api_key', '');
+INSERT INTO `settings` VALUES (9, 'smtp_server', '');
+INSERT INTO `settings` VALUES (10, 'smtp_port', '');
+INSERT INTO `settings` VALUES (11, 'smtp_email', '');
+INSERT INTO `settings` VALUES (12, 'smtp_password', '');
 INSERT INTO `settings` VALUES (13, 'smtp_ssl', 'true');
 INSERT INTO `settings` VALUES (14, 'sender_name', 'XXG卡密系统');
 INSERT INTO `settings` VALUES (15, 'notify_user_reg', 'true');
@@ -253,9 +251,9 @@ INSERT INTO `settings` VALUES (70, 'backupFrequency', 'daily');
 INSERT INTO `settings` VALUES (71, 'backupRetention', '7');
 INSERT INTO `settings` VALUES (72, 'dataCompression', 'true');
 INSERT INTO `settings` VALUES (73, 'payment_enabled', 'true');
-INSERT INTO `settings` VALUES (74, 'epay_api_url', 'https://www.ezfpy.cn/');
-INSERT INTO `settings` VALUES (75, 'epay_pid', '146');
-INSERT INTO `settings` VALUES (76, 'epay_key', 'mbYgrDma0JUlpfVsJogxKz6fka0qNSEE');
+INSERT INTO `settings` VALUES (74, 'epay_api_url', '');
+INSERT INTO `settings` VALUES (75, 'epay_pid', '');
+INSERT INTO `settings` VALUES (76, 'epay_key', '');
 INSERT INTO `settings` VALUES (77, 'epay_notify_url', '');
 INSERT INTO `settings` VALUES (78, 'epay_return_url', '');
 INSERT INTO `settings` VALUES (79, 'site_url', 'http://localhost:5173');
@@ -415,8 +413,6 @@ CREATE TABLE `users`  (
 -- Records of users
 -- ----------------------------
 INSERT INTO `users` VALUES (1, 'testuser', 'test@example.com', '$2y$10$gxgRAiv63rkmLDQcg1WcdumpGSKoia1pt5hVYsK2cJSpcwzVRFnjq', '测试用户', NULL, NULL, 1, 0, NULL, NULL, 0, '127.0.0.1', '2025-09-22 03:35:00', '2025-09-22 03:35:00', NULL, NULL);
-INSERT INTO `users` VALUES (2, 'demo', '3162396861@qq.com', '$2y$10$gxgRAiv63rkmLDQcg1WcdumpGSKoia1pt5hVYsK2cJSpcwzVRFnjq', '演示用户', 'http://localhost:8080/api/uploads/avatars/8d16f607-7913-4d7c-9b95-1b8a2ad43b65.png', '19912345678', 1, 0, '2026-01-14 19:54:49', '127.0.0.1', 12, '127.0.0.1', '2025-09-22 03:35:00', '2026-01-14 19:54:48', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoidXNlciIsInR5cGUiOiJhY2Nlc3MiLCJzdWIiOiJkZW1vIiwiaWF0IjoxNzY4MzkxNjg4LCJleHAiOjE3NjgzOTUyODh9.e71QxuNCH7b-udXCln4kxfRXzfWJ3q1PB7EDE9tD3g4', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoidXNlciIsInR5cGUiOiJyZWZyZXNoIiwic3ViIjoiZGVtbyIsImlhdCI6MTc2ODM5MTY4OCwiZXhwIjoxNzY4OTk2NDg4fQ.OcXguBpUg9Jqjjfg32zsuLCNB-OWtLBwWIpsOyJ-qHk');
-INSERT INTO `users` VALUES (5, 'xxg', 'xxg_temp@example.com', '$2a$10$Vt3i1mxQ5NHZ3qOEaxCPx.4iTGc6OND..BpQQVWU2bfStRlxmHUw6', 'xxg', NULL, '19983066553', 1, 1, '2026-01-10 20:02:55', '127.0.0.1', 3, '127.0.0.1', '2026-01-10 15:07:25', '2026-01-10 20:03:10', NULL, NULL);
 
 -- ----------------------------
 -- Table structure for verification_codes
@@ -437,6 +433,5 @@ CREATE TABLE `verification_codes`  (
 -- ----------------------------
 -- Records of verification_codes
 -- ----------------------------
-INSERT INTO `verification_codes` VALUES (2, '3162396861@qq.com', '704051', 'reset_password', '2026-01-10 14:44:59', '2026-01-10 14:39:59');
 
 SET FOREIGN_KEY_CHECKS = 1;
