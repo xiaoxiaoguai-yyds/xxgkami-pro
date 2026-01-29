@@ -81,4 +81,24 @@ public class SystemMonitorController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    /**
+     * 检查更新
+     */
+    @GetMapping("/check-update")
+    public ResponseEntity<?> checkUpdate() {
+        try {
+            String url = "https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro/raw/master/public/version.json";
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            String result = restTemplate.getForObject(url, String.class);
+            // Parse JSON manually or return string directly. 
+            // Since we need to return JSON, returning string with proper content type or parsing it is fine.
+            // Let's return the raw string, but set content type to application/json
+            return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(result);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "检查更新失败: " + e.getMessage()));
+        }
+    }
 }

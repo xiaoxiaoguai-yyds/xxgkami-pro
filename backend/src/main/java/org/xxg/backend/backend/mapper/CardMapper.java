@@ -151,6 +151,11 @@ public class CardMapper {
         jdbcTemplate.update(sql, Timestamp.valueOf(useTime), deviceId, ipAddress, id);
     }
 
+    public void updateUsageByHash(String cardHash, java.time.LocalDateTime useTime, int status, int remainingCount) {
+        String sql = "UPDATE cards SET status = ?, use_time = ?, remaining_count = ? WHERE encrypted_key = ?";
+        jdbcTemplate.update(sql, status, Timestamp.valueOf(useTime), remainingCount, cardHash);
+    }
+
     /**
      * 更新卡密信息
      */

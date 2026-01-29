@@ -71,7 +71,11 @@ public class JwtUtil {
         return (String) extractAllClaims(token).get("role");
     }
 
-    private Claims extractAllClaims(String token) {
+    public String generateCustomToken(Map<String, Object> claims, String subject, long expirationSeconds) {
+        return createToken(claims, subject, expirationSeconds * 1000);
+    }
+    
+    public Claims extractAllClaims(String token) {
         return Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token).getBody();
     }
 

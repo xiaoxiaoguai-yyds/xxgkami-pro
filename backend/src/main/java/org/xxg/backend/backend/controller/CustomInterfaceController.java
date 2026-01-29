@@ -31,7 +31,7 @@ public class CustomInterfaceController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @RequestMapping(value = "/use", method = {RequestMethod.GET, RequestMethod.POST})
+    @RequestMapping(value = "/use", method = {RequestMethod.GET, RequestMethod.POST}, produces = "application/json")
     public ResponseEntity<Map<String, Object>> useCardWithoutPathKey(
             @RequestParam(required = false) Map<String, String> queryParams,
             @RequestBody(required = false) Map<String, Object> bodyParams,
@@ -66,7 +66,7 @@ public class CustomInterfaceController {
         return processCardUse(apiKey, incomingParams, request);
     }
 
-    @RequestMapping(value = "/{apiKeyStr}/use", method = {RequestMethod.GET, RequestMethod.POST})
+    @RequestMapping(value = "/{apiKeyStr}/use", method = {RequestMethod.GET, RequestMethod.POST}, produces = "application/json")
     public ResponseEntity<Map<String, Object>> useCard(
             @PathVariable String apiKeyStr,
             @RequestParam(required = false) Map<String, String> queryParams,

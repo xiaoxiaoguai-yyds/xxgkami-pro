@@ -68,9 +68,4 @@ public class ApiKeyController {
         apiKeyService.unassignUser(id, userId);
         return ResponseEntity.ok().build();
     }
-
-    @GetMapping("/users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userMapper.findAll());
-    }
 }

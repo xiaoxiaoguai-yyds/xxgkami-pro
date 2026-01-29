@@ -17,7 +17,7 @@
             <th>类型</th>
             <th>状态</th>
             <th>创建时间</th>
-            <th>持续时间</th>
+            <th>持续时间/剩余次数</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -36,7 +36,7 @@
               </span>
             </td>
             <td>{{ formatDate(key.create_time) }}</td>
-            <td>{{ key.duration }}天</td>
+            <td>{{ key.card_type === 'time' ? key.duration + '天' : key.remaining_count + '次' }}</td>
             <td>
               <div class="action-buttons">
                 <button class="btn-secondary btn-sm" @click="copyKey(key.card_key)">
@@ -271,8 +271,7 @@
           <div class="form-group">
             <label>加密类型</label>
             <select v-model="newKey.encryption_type">
-              <option value="sha1">SHA1</option>
-              <option value="rc4">RC4</option>
+              <option value="advanced">高级加密 (AES-256-GCM + ECC + Argon2id)</option>
             </select>
           </div>
           <div class="form-group">
@@ -318,7 +317,7 @@ const newKey = reactive({
   duration: 30,
   total_count: 100,
   verify_method: 'web',
-  encryption_type: 'sha1',
+  encryption_type: 'advanced',
   allow_reverify: 1
 })
 
@@ -456,7 +455,7 @@ const createKeys = () => {
   newKey.duration = 30
   newKey.total_count = 100
   newKey.verify_method = 'web'
-  newKey.encryption_type = 'sha1'
+  newKey.encryption_type = 'advanced'
   newKey.allow_reverify = 1
 }
 
@@ -471,7 +470,7 @@ const editKey = (key) => {
     remaining_count: key.remaining_count || key.total_count || 100,
     status: key.status,
     verify_method: key.verify_method || 'web',
-    encryption_type: key.encryption_type || 'sha1',
+    encryption_type: key.encryption_type || 'advanced',
     allow_reverify: key.allow_reverify !== undefined ? key.allow_reverify : 1
   })
   showEditKeyModal.value = true

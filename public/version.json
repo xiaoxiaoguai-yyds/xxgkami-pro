@@ -1,11 +1,15 @@
 {
   "version": "1.0.1",
   "buildDate": "2026-01-30",
-  "repoUrl": "https://github.com/xxg-kami/xxgkami-vue",
+  "repoUrl": "https://github.com/xiaoxiaoguai-yyds/xxgkami-pro",
   "changelog": [
     "1. 完善管理员账号密码加密逻辑，提升系统安全性",
     "2. 新增系统信息页面，方便查看版本信息",
     "3. 优化前端导航栏布局",
     "4. 修复部分已知的小问题"
-  ]
+  ],
+  "updateScripts": {
+    "cn": "curl -O https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro/raw/master/install.sh && chmod +x install.sh && sudo ./install.sh",
+    "global": "curl -O https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/heads/master/install.sh && chmod +x install.sh && sudo ./install.sh"
+  }
 }

@@ -521,6 +521,82 @@
                   </el-form-item>
                 </el-form>
               </el-card>
+
+              <el-card shadow="never" style="margin-top: 20px;">
+                <template #header>
+                  <span>{{ userInfo.hasPassword ? '修改密码' : '设置密码' }}</span>
+                </template>
+                <el-form :model="passwordForm" label-width="100px">
+                  <el-form-item label="旧密码" v-if="userInfo.hasPassword">
+                    <el-input v-model="passwordForm.oldPassword" type="password" placeholder="请输入旧密码" show-password />
+                  </el-form-item>
+                  <el-form-item label="新密码">
+                    <el-input v-model="passwordForm.newPassword" type="password" placeholder="请输入新密码" show-password />
+                  </el-form-item>
+                  <el-form-item label="确认新密码">
+                    <el-input v-model="passwordForm.confirmPassword" type="password" placeholder="请确认新密码" show-password />
+                  </el-form-item>
+                  <el-form-item>
+                    <el-button type="primary" @click="handleChangePassword" :loading="passwordLoading">{{ userInfo.hasPassword ? '修改密码' : '设置密码' }}</el-button>
+                  </el-form-item>
+                </el-form>
+              </el-card>
+
+              <el-card shadow="never" style="margin-top: 20px;">
+                <template #header>
+                  <span>社交账号绑定</span>
+                </template>
+                <div v-if="loadingSocial" class="loading-text">加载中...</div>
+                <div v-else>
+                  <div class="social-list">
+                    <!-- QQ -->
+                     <div v-if="oauthLoginTypes.qq" class="social-item">
+                        <div class="social-info">
+                          <span class="social-name">QQ</span>
+                        </div>
+                        <div class="social-action">
+                          <template v-if="isBound('qq')">
+                             <el-tag type="success" style="margin-right: 10px;">已绑定</el-tag>
+                             <el-button type="primary" size="small" @click="handleBindSocial('qq')">更换绑定</el-button>
+                             <el-button type="danger" size="small" @click="handleUnbindSocial('qq')">解绑</el-button>
+                          </template>
+                          <el-button v-else type="primary" size="small" @click="handleBindSocial('qq')">绑定</el-button>
+                        </div>
+                     </div>
+                      <!-- WeChat -->
+                     <div v-if="oauthLoginTypes.wx" class="social-item">
+                        <div class="social-info">
+                          <span class="social-name">微信</span>
+                        </div>
+                        <div class="social-action">
+                          <template v-if="isBound('wx')">
+                             <el-tag type="success" style="margin-right: 10px;">已绑定</el-tag>
+                             <el-button type="primary" size="small" @click="handleBindSocial('wx')">更换绑定</el-button>
+                             <el-button type="danger" size="small" @click="handleUnbindSocial('wx')">解绑</el-button>
+                          </template>
+                          <el-button v-else type="primary" size="small" @click="handleBindSocial('wx')">绑定</el-button>
+                        </div>
+                     </div>
+                      <!-- Alipay -->
+                     <div v-if="oauthLoginTypes.alipay" class="social-item">
+                        <div class="social-info">
+                          <span class="social-name">支付宝</span>
+                        </div>
+                        <div class="social-action">
+                          <template v-if="isBound('alipay')">
+                             <el-tag type="success" style="margin-right: 10px;">已绑定</el-tag>
+                             <el-button type="primary" size="small" @click="handleBindSocial('alipay')">更换绑定</el-button>
+                             <el-button type="danger" size="small" @click="handleUnbindSocial('alipay')">解绑</el-button>
+                          </template>
+                          <el-button v-else type="primary" size="small" @click="handleBindSocial('alipay')">绑定</el-button>
+                        </div>
+                     </div>
+                  </div>
+                  <div v-if="!oauthLoginTypes.qq && !oauthLoginTypes.wx && !oauthLoginTypes.alipay" class="no-social">
+                    暂无支持的社交登录方式
+                  </div>
+                </div>
+              </el-card>
             </el-col>
           </el-row>
         </div>
@@ -533,7 +609,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { mockCardPrices, mockPurchaseHistory, mockPurchaseCard } from '../data/mockData.js'
-import { orderApi, cardApi, userApi, pricingApi } from '../services/api.js'
+import { userProfileApi, cardApi, pricingApi, orderApi, statsApi, paymentApi, settingsApi } from '../services/api.js'
 
 export default {
   name: 'UserPage',
@@ -584,10 +660,123 @@ export default {
       phone: ''
     })
 
+    // 修改密码表单
+    const passwordForm = reactive({
+      oldPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    })
+    const passwordLoading = ref(false)
+
+    // 社交绑定
+    const socialBindings = ref([])
+    const loadingSocial = ref(false)
+    const oauthLoginTypes = reactive({
+      qq: false,
+      wx: false,
+      alipay: false
+    })
+
+    // 修改密码
+    const handleChangePassword = async () => {
+      if (userInfo.hasPassword && !passwordForm.oldPassword) {
+        ElMessage.warning('请输入旧密码')
+        return
+      }
+      if (!passwordForm.newPassword) {
+        ElMessage.warning('请输入新密码')
+        return
+      }
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        ElMessage.warning('两次输入的密码不一致')
+        return
+      }
+      
+      passwordLoading.value = true
+      try {
+        const res = await userProfileApi.changePassword(passwordForm.oldPassword, passwordForm.newPassword)
+        if (res.success) {
+           ElMessage.success(userInfo.hasPassword ? '密码修改成功' : '密码设置成功')
+           passwordForm.oldPassword = ''
+           passwordForm.newPassword = ''
+           passwordForm.confirmPassword = ''
+           // Refresh profile to update hasPassword status
+           fetchUserProfile();
+        } else {
+           ElMessage.error(res.message || '操作失败')
+        }
+      } catch (e) {
+        ElMessage.error(e.message || '操作失败')
+      } finally {
+        passwordLoading.value = false
+      }
+    }
+
+    // 获取社交绑定列表
+    const fetchSocialBindings = async () => {
+      loadingSocial.value = true
+      try {
+        const res = await userProfileApi.getSocialBindings()
+        if (res.success) {
+          socialBindings.value = res.data || []
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        loadingSocial.value = false
+      }
+    }
+
+    // 获取OAuth配置
+    const fetchOAuthSettings = async () => {
+       try {
+         const res = await settingsApi.getAllSettings()
+         if (res.success && res.data) {
+             const types = res.data.oauth_login_types || ''
+             oauthLoginTypes.qq = types.includes('qq')
+             oauthLoginTypes.wx = types.includes('wx')
+             oauthLoginTypes.alipay = types.includes('alipay')
+         }
+       } catch (e) {
+         console.error(e)
+       }
+    }
+
+    const isBound = (type) => {
+       return socialBindings.value.some(b => b.socialType === type)
+    }
+
+    const handleBindSocial = (type) => {
+       sessionStorage.setItem('binding_mode', 'true');
+       // Store current path to return to? App.vue usually redirects to home/user.
+       const apiUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+       // We use the same login endpoint. Backend will return register token if not bound.
+       window.location.href = `${apiUrl}/oauth/login/${type}`;
+    }
+
+    const handleUnbindSocial = async (type) => {
+       try {
+         await ElMessageBox.confirm('确定要解绑该账号吗？', '提示', {
+           type: 'warning',
+           confirmButtonText: '确定',
+           cancelButtonText: '取消'
+         })
+         const res = await userProfileApi.unbindSocial(type)
+         if (res.success) {
+            ElMessage.success('解绑成功')
+            fetchSocialBindings()
+         } else {
+            ElMessage.error(res.message || '解绑失败')
+         }
+       } catch (e) {
+         if (e !== 'cancel') ElMessage.error(e.message || '解绑失败')
+       }
+    }
+
     // 获取用户资料
     const fetchUserProfile = async () => {
         try {
-            const result = await userApi.getProfile();
+            const result = await userProfileApi.getProfile();
             Object.assign(userInfo, result);
             Object.assign(profileForm, {
                 nickname: result.nickname,
@@ -603,7 +792,7 @@ export default {
     // 更新用户资料
     const updateProfile = async () => {
         try {
-            const result = await userApi.updateProfile(profileForm);
+            const result = await userProfileApi.updateProfile(profileForm);
             if (result.success) {
                 ElMessage.success('个人信息更新成功');
                 await fetchUserProfile();
@@ -631,7 +820,7 @@ export default {
                 return false;
             }
 
-            const result = await userApi.uploadAvatar(file.raw);
+            const result = await userProfileApi.uploadAvatar(file.raw);
             if (result.success) {
                 ElMessage.success('头像上传成功');
                 userInfo.avatar = result.url;
@@ -832,6 +1021,8 @@ export default {
         fetchOrders();
         fetchUserProfile();
         fetchPricing();
+        fetchSocialBindings();
+        fetchOAuthSettings();
         
         // Check if returned from payment with success
         // Use window.location.hash to parse params in hash mode
@@ -1128,7 +1319,18 @@ export default {
         useCard,
         viewCardDetail,
         updateProfile,
-        handleAvatarUpload, // Added
+        handleAvatarUpload,
+        // Password & Social
+        passwordForm,
+        passwordLoading,
+        handleChangePassword,
+        socialBindings,
+        loadingSocial,
+        oauthLoginTypes,
+        isBound,
+        handleBindSocial,
+        handleUnbindSocial,
+        
         showProfile,
         showSettings,
         logout,
@@ -1401,5 +1603,41 @@ export default {
   .user-dropdown .username {
     display: none;
   }
+}
+
+.social-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.social-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+
+.social-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.social-name {
+  font-weight: 500;
+}
+
+.social-action {
+  display: flex;
+  align-items: center;
+}
+
+.no-social {
+  color: #909399;
+  text-align: center;
+  padding: 20px;
 }
 </style>

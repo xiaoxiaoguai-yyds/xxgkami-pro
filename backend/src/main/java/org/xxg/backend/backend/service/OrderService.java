@@ -72,19 +72,7 @@ public class OrderService {
 
         BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(request.getQuantity()));
 
-        // Create cards directly
-        // Defaults: verifyMethod="web", encryptionType="sha1", allowReverify=1
-        String creatorType = "user";
-        Long creatorId = request.getUserId() != null ? Long.valueOf(request.getUserId()) : 1L;
-        String creatorName = request.getUsername();
-        
-        List<Card> cards = cardService.createCards(request.getQuantity(), request.getCardType(), duration, totalCount, 
-                                                 "web", "sha1", 1,
-                                                 creatorType, creatorId, creatorName);
-
-        // Collect card keys
-        String cardKeys = cards.stream().map(Card::getCardKey).collect(Collectors.joining(","));
-
+        // Initialize order
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
         order.setUserId(request.getUserId());
@@ -94,55 +82,90 @@ public class OrderService {
         order.setQuantity(request.getQuantity());
         order.setUnitPrice(unitPrice);
         order.setTotalPrice(totalPrice);
-        
-        // Check if payment is enabled
-        String paymentEnabled = settingsService.getSetting("payment_enabled"); // Or check if PID exists
-        // Actually PaymentService.isPaymentEnabled() checks for URL and PID
-        
-        // For now, let's inject PaymentService into OrderService? 
-        // Circular dependency risk: PaymentController -> OrderService -> PaymentService -> SettingsService. 
-        // OrderService -> PaymentService is fine.
-        
-        // If payment is enabled, set status to pending.
-        // But for "offline" or "admin created", maybe completed?
-        // Let's assume user-created orders via API are always pending if payment configured.
-        
-        // But wait, the previous logic was immediate completion. 
-        // Let's check if we should modify the status based on request.
-        // Since we are integrating payment, default should be pending.
-        
-        order.setStatus("pending"); 
         order.setPaymentMethod(request.getPaymentMethod());
         order.setCreateTime(LocalDateTime.now());
-        order.setCardKeys(cardKeys); // Keys are generated but maybe shouldn't be revealed yet?
-        // Ideally keys are generated AFTER payment to avoid waste. 
-        // But the current implementation generates them here. 
-        // Let's keep generating them but they won't be shown to user until status is completed.
+        
+        // Check if payment is enabled
+        String paymentEnabled = settingsService.getSetting("payment_enabled"); 
+        
+        // If payment is enabled, do NOT generate cards yet.
+        // Cards should only be generated upon successful payment callback.
+        // Status should be "pending".
+        
+        String cardKeys = "";
+        
+        if ("true".equalsIgnoreCase(paymentEnabled)) {
+            order.setStatus("pending");
+            // Do NOT generate cards here
+        } else {
+            // Payment disabled or free/admin mode, generate immediately
+            order.setStatus("completed"); // Or "pending" if manual approval? Assuming completed for now.
+            
+            // Create cards directly
+            // Use "advanced" encryption for user purchases by default
+            String creatorType = "user";
+            Long creatorId = request.getUserId() != null ? Long.valueOf(request.getUserId()) : 1L;
+            String creatorName = request.getUsername();
+            
+            List<Card> cards = cardService.createCards(request.getQuantity(), request.getCardType(), duration, totalCount, 
+                                                     "web", "advanced", 1,
+                                                     creatorType, creatorId, creatorName, null);
+    
+            // Collect card keys
+            cardKeys = cards.stream().map(Card::getCardKey).collect(Collectors.joining(","));
+        }
+
+        order.setCardKeys(cardKeys); 
         
         orderMapper.insert(order);
 
-        // Don't send notification here if pending.
-        
         return order;
     }
     
+    /**
+     * Process successful payment and generate cards
+     */
+    @Transactional
+    public void completeOrder(Order order) {
+        if (!"pending".equals(order.getStatus())) {
+            return; // Already processed
+        }
+        
+        // Calculate duration/count again or store in order?
+        // We have cardType and cardSpec in order.
+        // We need to parse them again or store parameters.
+        // To be safe, let's re-parse.
+        int duration = 0;
+        int totalCount = 0;
+        int specValue = parseSpecValue(order.getCardSpec());
+        if ("time".equals(order.getCardType())) duration = specValue;
+        else totalCount = specValue;
+        
+        String creatorType = "user";
+        Long creatorId = order.getUserId() != null ? Long.valueOf(order.getUserId()) : 1L;
+        String creatorName = order.getUsername();
+        
+        List<Card> cards = cardService.createCards(order.getQuantity(), order.getCardType(), duration, totalCount, 
+                                                 "web", "advanced", 1,
+                                                 creatorType, creatorId, creatorName, null);
+
+        // Collect card keys
+        String cardKeys = cards.stream().map(Card::getCardKey).collect(Collectors.joining(","));
+        
+        // Update order
+        order.setCardKeys(cardKeys);
+        order.setStatus("completed");
+        orderMapper.update(order); // Assuming update method exists
+        
+        // Send notification
+        // ...
+    }
+    
+    @Transactional
     public void completeOrder(String orderNo) {
         Order order = orderMapper.findByOrderNo(orderNo);
-        if (order != null && !"completed".equals(order.getStatus())) {
-            orderMapper.updateStatus(orderNo, "completed");
-            
-            // Send notification
-            String notifyEmail = null;
-            if (order.getUserId() != null) {
-                User user = userMapper.findById(Long.valueOf(order.getUserId()));
-                if (user != null && user.getEmail() != null && !user.getEmail().isEmpty()) {
-                    notifyEmail = user.getEmail();
-                }
-            }
-            
-            if (notifyEmail != null) {
-                 emailService.sendOrderNotification(notifyEmail, order.getOrderNo());
-            }
+        if (order != null) {
+            completeOrder(order);
         }
     }
     

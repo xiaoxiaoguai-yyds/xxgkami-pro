@@ -124,6 +124,16 @@ public class OrderMapper {
         return jdbcTemplate.query(sql, rowMapper);
     }
 
+    public int update(Order order) {
+        String sql = "UPDATE orders SET status = ?, pay_time = ?, card_keys = ? WHERE order_no = ?";
+        return jdbcTemplate.update(sql, 
+            order.getStatus(),
+            order.getPayTime() != null ? Timestamp.valueOf(order.getPayTime()) : null,
+            order.getCardKeys(),
+            order.getOrderNo()
+        );
+    }
+
     public int updateStatus(String orderNo, String status) {
         String sql = "UPDATE orders SET status = ? WHERE order_no = ?";
         return jdbcTemplate.update(sql, status, orderNo);

@@ -1,9 +1,10 @@
 package org.xxg.backend.backend.dto;
 
-public class LoginRequest {
+public class RegisterBindRequest {
     private String username;
     private String password;
-    private String totpCode;
+    private String email;
+    private String registerToken;
 
     public String getUsername() {
         return username;
@@ -21,11 +22,19 @@ public class LoginRequest {
         this.password = password;
     }
 
-    public String getTotpCode() {
-        return totpCode;
+    public String getEmail() {
+        return email;
     }
 
-    public void setTotpCode(String totpCode) {
-        this.totpCode = totpCode;
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getRegisterToken() {
+        return registerToken;
+    }
+
+    public void setRegisterToken(String registerToken) {
+        this.registerToken = registerToken;
     }
 }

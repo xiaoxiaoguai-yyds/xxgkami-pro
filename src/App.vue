@@ -5,7 +5,7 @@ import LoginForm from './components/loginform.vue'
 import Dashboard from './components/Dashboard.vue'
 import UserPage from './components/UserPage.vue'
 import NotificationPage from './components/NotificationPage.vue'
-import { authApi, maintenanceApi } from './services/api.js'
+import { authApi, maintenanceApi, userProfileApi } from './services/api.js'
 
 // 响应式数据
 const currentPage = ref('home') // 默认为首页
@@ -98,7 +98,15 @@ const handleLogout = async () => {
     localStorage.removeItem('refreshToken')
     
     currentPage.value = 'login'
-    loginType.value = 'user'
+    
+    // 根据当前 URL 判断是否显示管理员登录
+    const path = window.location.pathname
+    const hash = window.location.hash
+    if (path.includes('/admin') || hash.includes('admin')) {
+      loginType.value = 'admin'
+    } else {
+      loginType.value = 'user'
+    }
   }
 }
 
@@ -118,10 +126,123 @@ const checkMaintenance = async () => {
   }
 }
 
+// 处理 OAuth 回调
+const handleOAuthCallback = async () => {
+  const isBinding = sessionStorage.getItem('binding_mode') === 'true';
+  
+  // Check both search (query) and hash for params
+  let urlParams = new URLSearchParams(window.location.search);
+  let token = urlParams.get('token');
+  let refreshToken = urlParams.get('refreshToken');
+
+  // If not found in search, try hash (e.g. #/oauth/callback?token=...)
+  if (!token && window.location.hash.includes('?')) {
+      const hashQuery = window.location.hash.split('?')[1];
+      const hashParams = new URLSearchParams(hashQuery);
+      token = hashParams.get('token');
+      refreshToken = hashParams.get('refreshToken');
+  }
+  
+  // If still not found, check if it's in the path (some routers might do this)
+  
+  if (token && refreshToken) {
+    console.log('[App] OAuth callback detected');
+    
+    if (isBinding) {
+        alert('该社交账号已被其他用户绑定！');
+        sessionStorage.removeItem('binding_mode');
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return true; 
+    }
+
+    try {
+      localStorage.setItem('token', token)
+      localStorage.setItem('refreshToken', refreshToken)
+      localStorage.setItem('isLoggedIn', 'true')
+      
+      // 获取用户信息
+      const res = await authApi.getUserInfo()
+      if (res.success) {
+        userInfo.value = res.data
+        localStorage.setItem('userInfo', JSON.stringify(res.data))
+        isLoggedIn.value = true
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        currentPage.value = 'user'
+      } else {
+          console.error('OAuth login failed:', res);
+          handleLogout();
+      }
+    } catch (e) {
+      console.error('OAuth callback error:', e)
+      handleLogout()
+    }
+  } else if (window.location.pathname.includes('/oauth/callback') || window.location.hash.includes('/oauth/callback')) {
+      // Check for needRegister param
+      const needRegister = urlParams.get('needRegister') || new URLSearchParams(window.location.hash.split('?')[1]).get('needRegister');
+      if (needRegister === 'true') {
+           const registerToken = urlParams.get('registerToken') || new URLSearchParams(window.location.hash.split('?')[1]).get('registerToken');
+           const nickname = urlParams.get('nickname') || new URLSearchParams(window.location.hash.split('?')[1]).get('nickname');
+           
+           if (isBinding && registerToken) {
+               try {
+                   const res = await userProfileApi.bindSocial(registerToken);
+                   if (res.success) {
+                       alert('绑定成功！');
+                   } else {
+                       alert(res.message || '绑定失败');
+                   }
+               } catch (e) {
+                   alert('绑定失败: ' + e.message);
+               } finally {
+                   sessionStorage.removeItem('binding_mode');
+                   window.history.replaceState({}, document.title, window.location.pathname);
+                   currentPage.value = 'user';
+                   // Reload to ensure UserPage refreshes
+                   window.location.reload();
+               }
+               return true;
+           }
+
+           // We are in register mode
+           if (registerToken) {
+               // Store temp token
+               sessionStorage.setItem('oauth_register_token', registerToken);
+               sessionStorage.setItem('oauth_nickname', nickname || '');
+               // Redirect to login page with register mode
+               currentPage.value = 'login';
+               // Pass a flag to login component to show register-bind form?
+               // Or we can just use a query param 'mode=oauth_register'
+               window.location.hash = '#/login?mode=oauth_register';
+               // Actually, since we use currentPage='login', we can pass props or state.
+               // But LoginForm is a component.
+               // We need to tell LoginForm to show OAuth Register.
+               // Let's use a global event or store, or simply url param.
+               // App.vue manages currentPage.
+               return true;
+           }
+      } else {
+          const error = urlParams.get('error') || new URLSearchParams(window.location.hash.split('?')[1]).get('error');
+          if (error) {
+              console.error('OAuth Error from provider:', error);
+              alert('登录失败: ' + error);
+              currentPage.value = 'login';
+              return true;
+          }
+      }
+  }
+  return false;
+}
+
 // 组件挂载时检查登录状态
 onMounted(async () => {
   await checkMaintenance()
-  await checkLoginStatus()
+  
+  // 先检查 OAuth 回调
+  const oauthSuccess = await handleOAuthCallback()
+  if (!oauthSuccess) {
+    await checkLoginStatus()
+  }
   
   // 每30秒检查一次维护状态
   setInterval(checkMaintenance, 30000)

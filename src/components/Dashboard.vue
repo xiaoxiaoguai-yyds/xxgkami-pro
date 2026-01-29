@@ -49,6 +49,11 @@
         @toggle-api-key="handleToggleApiKey"
       />
 
+      <!-- 用户管理页面 -->
+      <UserManagePage 
+        v-if="activeTab === 'users'"
+      />
+
       <!-- 通知管理页面 -->
       <NotificationPage 
         v-if="activeTab === 'notification'"
@@ -57,6 +62,7 @@
       <!-- 系统设置页面 -->
       <SettingsPage 
         v-if="activeTab === 'settings'"
+        :user-info="userInfo"
         @save-settings="handleSaveSettings"
         @clear-cache="handleClearCache"
         @optimize-database="handleOptimizeDatabase"
@@ -67,6 +73,11 @@
       <!-- 系统维护页面 -->
       <MaintenanceAdmin 
         v-if="activeTab === 'maintenance'"
+      />
+
+      <!-- 系统信息页面 -->
+      <SystemInfo 
+        v-if="activeTab === 'system_info'"
       />
     </main>
   </div>
@@ -82,9 +93,11 @@ import KeysManagePage from './KeysManagePage.vue'
 import PricingManagePage from './PricingManagePage.vue'
 import OrdersManagePage from './OrdersManagePage.vue'
 import ApiManagePage from './ApiManagePage.vue'
+import UserManagePage from './UserManagePage.vue'
 import SettingsPage from './SettingsPage.vue'
 import NotificationPage from './NotificationPage.vue'
 import MaintenanceAdmin from './MaintenanceAdmin.vue'
+import SystemInfo from './SystemInfo.vue'
 
 const props = defineProps({
   userInfo: Object
@@ -123,10 +136,21 @@ const handleLogout = () => {
   emit('logout')
 }
 
-const handleTabChange = (tab) => {
-  console.log('Dashboard: 接收到标签页切换事件:', tab)
+const handleTabChange = (tab, section) => {
+  console.log('Dashboard: 接收到标签页切换事件:', tab, 'Section:', section)
   console.log('Dashboard: 当前activeTab:', activeTab.value)
   activeTab.value = tab
+  
+  if (section && tab === 'settings') {
+    // Wait for DOM update then scroll
+    setTimeout(() => {
+      const element = document.getElementById('settings-' + section)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 100)
+  }
+  
   console.log('Dashboard: 切换后activeTab:', activeTab.value)
 }
 

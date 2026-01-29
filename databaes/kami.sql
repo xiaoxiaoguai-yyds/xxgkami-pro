@@ -11,7 +11,7 @@
  Target Server Version : 90300 (9.3.0)
  File Encoding         : 65001
 
- Date: 19/01/2026 09:39:10
+ Date: 29/01/2026 20:24:04
 */
 
 SET NAMES utf8mb4;
@@ -29,6 +29,9 @@ CREATE TABLE `admins`  (
   `last_login` datetime NULL DEFAULT NULL,
   `access_token` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `refresh_token` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `totp_secret` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `totp_enabled` tinyint(1) NULL DEFAULT 0,
+  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `username`(`username` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
@@ -36,7 +39,7 @@ CREATE TABLE `admins`  (
 -- ----------------------------
 -- Records of admins
 -- ----------------------------
-INSERT INTO `admins` VALUES (2, 'admin', '123456', '2025-05-20 08:18:44', '2026-01-16 10:37:40', NULL, NULL);
+INSERT INTO `admins` VALUES (2, 'admin', '$2a$10$Z9RAmlKbGpvbKMtKblOjFe.KrsHYE2pG/IaSJLAjiUvKZnGMYTr.K', '2025-05-20 08:18:44', '2026-01-29 19:53:33', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYWRtaW4iLCJ0eXBlIjoiYWNjZXNzIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3Njk2ODc2MTMsImV4cCI6MTc2OTY5MTIxM30.BFuqvoF8reKgPU_LOfR4ILkiKOIqKH-_d5jaO9uJUhI', 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYWRtaW4iLCJ0eXBlIjoicmVmcmVzaCIsInN1YiI6ImFkbWluIiwiaWF0IjoxNzY5Njg3NjEzLCJleHAiOjE3NzAyOTI0MTN9.TohD5YFVBEal1C116rjUxqXvXk5uNq5McFP-ZC8kWYM', NULL, 0, NULL);
 
 -- ----------------------------
 -- Table structure for api_keys
@@ -58,10 +61,30 @@ CREATE TABLE `api_keys`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `api_key`(`api_key` ASC) USING BTREE,
   UNIQUE INDEX `idx_api_key_value`(`key_value` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of api_keys
+-- ----------------------------
+
+-- ----------------------------
+-- Table structure for card_cipher
+-- ----------------------------
+DROP TABLE IF EXISTS `card_cipher`;
+CREATE TABLE `card_cipher`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `card_hash` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'Argon2id hash of cardId + salt',
+  `cipher_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'Base64 of Encrypted Payload',
+  `sign_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'Base64 of ECC Signature',
+  `salt` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'Salt for Argon2id',
+  `iv` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'Base64 of AES-GCM IV',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `card_hash`(`card_hash` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 12 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of card_cipher
 -- ----------------------------
 
 -- ----------------------------
@@ -95,13 +118,35 @@ INSERT INTO `card_pricing` VALUES (10, 'count', 500, 95.00, '500次使用卡', '
 INSERT INTO `card_pricing` VALUES (11, 'count', 1000, 180.00, '1000次使用卡', '2026-01-14 20:01:56', '2026-01-14 20:01:56');
 
 -- ----------------------------
+-- Table structure for card_status
+-- ----------------------------
+DROP TABLE IF EXISTS `card_status`;
+CREATE TABLE `card_status`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `card_hash` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `remain_count` int NOT NULL DEFAULT 0,
+  `total_count` int NOT NULL DEFAULT 0,
+  `expire_time` datetime NULL DEFAULT NULL,
+  `last_use_time` datetime NULL DEFAULT NULL,
+  `is_valid` tinyint(1) NULL DEFAULT 1,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `card_hash`(`card_hash` ASC) USING BTREE,
+  INDEX `idx_card_hash`(`card_hash` ASC) USING BTREE,
+  CONSTRAINT `fk_card_status_hash` FOREIGN KEY (`card_hash`) REFERENCES `card_cipher` (`card_hash`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 12 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of card_status
+-- ----------------------------
+
+-- ----------------------------
 -- Table structure for cards
 -- ----------------------------
 DROP TABLE IF EXISTS `cards`;
 CREATE TABLE `cards`  (
   `id` int NOT NULL AUTO_INCREMENT,
-  `card_key` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '原始卡密',
-  `encrypted_key` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '加密后的卡密',
+  `card_key` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `encrypted_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `status` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0:未使用 1:已使用 2:已停用',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `use_time` datetime NULL DEFAULT NULL,
@@ -110,7 +155,7 @@ CREATE TABLE `cards`  (
   `verify_method` enum('web','post','get') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `allow_reverify` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否允许同设备重复验证(1:允许, 0:不允许)',
   `device_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `encryption_type` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'sha1' COMMENT '加密类型 (sha1, rc4)',
+  `encryption_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `card_type` enum('time','count') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'time' COMMENT '卡密类型：time-时间卡密，count-次数卡密',
   `total_count` int NOT NULL DEFAULT 0 COMMENT '总次数（次数卡密专用）',
   `remaining_count` int NOT NULL DEFAULT 0 COMMENT '剩余次数（次数卡密专用）',
@@ -126,7 +171,7 @@ CREATE TABLE `cards`  (
   INDEX `creator_type`(`creator_type` ASC) USING BTREE,
   INDEX `creator_id`(`creator_id` ASC) USING BTREE,
   INDEX `creator_name`(`creator_name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 63 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 73 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of cards
@@ -199,7 +244,7 @@ CREATE TABLE `orders`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `order_no`(`order_no` ASC) USING BTREE,
   INDEX `user_id`(`user_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 31 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 32 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of orders
@@ -215,7 +260,7 @@ CREATE TABLE `settings`  (
   `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `name`(`name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 245 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 452 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of settings
@@ -251,12 +296,20 @@ INSERT INTO `settings` VALUES (70, 'backupFrequency', 'daily');
 INSERT INTO `settings` VALUES (71, 'backupRetention', '7');
 INSERT INTO `settings` VALUES (72, 'dataCompression', 'true');
 INSERT INTO `settings` VALUES (73, 'payment_enabled', 'true');
-INSERT INTO `settings` VALUES (74, 'epay_api_url', '');
+INSERT INTO `settings` VALUES (74, 'epay_api_url', 'https://www.ezfpy.cn/');
 INSERT INTO `settings` VALUES (75, 'epay_pid', '');
 INSERT INTO `settings` VALUES (76, 'epay_key', '');
 INSERT INTO `settings` VALUES (77, 'epay_notify_url', '');
 INSERT INTO `settings` VALUES (78, 'epay_return_url', '');
 INSERT INTO `settings` VALUES (79, 'site_url', 'http://localhost:5173');
+INSERT INTO `settings` VALUES (80, 'oauth_url', 'https://baoxian18.com');
+INSERT INTO `settings` VALUES (81, 'oauth_appid', '');
+INSERT INTO `settings` VALUES (82, 'oauth_appkey', '');
+INSERT INTO `settings` VALUES (83, 'oauth_login_types', 'qq,wx,alipay');
+INSERT INTO `settings` VALUES (84, 'oauth_callback_domain', '');
+INSERT INTO `settings` VALUES (260, 'qqLogin', 'false');
+INSERT INTO `settings` VALUES (261, 'authenticatorLogin', 'false');
+INSERT INTO `settings` VALUES (262, 'aggregatedLogin', 'false');
 
 -- ----------------------------
 -- Table structure for slides
@@ -279,6 +332,25 @@ CREATE TABLE `slides`  (
 INSERT INTO `slides` VALUES (1, '安全可靠的验证系统', '采用先进的加密技术，确保您的数据安全', 'assets/images/slide1.jpg', 1, 1, '2025-05-06 09:13:25');
 INSERT INTO `slides` VALUES (2, '便捷高效的验证流程', '支持多种验证方式，快速响应', 'assets/images/slide2.jpg', 2, 1, '2025-05-06 09:13:25');
 INSERT INTO `slides` VALUES (3, '完整的API接口', '提供丰富的接口，便于集成', 'assets/images/slide3.jpg', 3, 1, '2025-05-06 09:13:25');
+
+-- ----------------------------
+-- Table structure for social_users
+-- ----------------------------
+DROP TABLE IF EXISTS `social_users`;
+CREATE TABLE `social_users`  (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `social_uid` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `social_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `social_uid`(`social_uid` ASC, `social_type` ASC) USING BTREE,
+  INDEX `user_id`(`user_id` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Records of social_users
+-- ----------------------------
 
 -- ----------------------------
 -- Table structure for spring_session
@@ -349,7 +421,7 @@ CREATE TABLE `user_api_keys`  (
   `assign_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `user_id`(`user_id` ASC, `api_key_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of user_api_keys
@@ -374,7 +446,7 @@ CREATE TABLE `user_sessions`  (
   INDEX `user_id`(`user_id` ASC) USING BTREE,
   INDEX `expires_at`(`expires_at` ASC) USING BTREE,
   CONSTRAINT `user_sessions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户会话表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户会话表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of user_sessions
@@ -412,7 +484,7 @@ CREATE TABLE `users`  (
 -- ----------------------------
 -- Records of users
 -- ----------------------------
-INSERT INTO `users` VALUES (1, 'testuser', 'test@example.com', '$2y$10$gxgRAiv63rkmLDQcg1WcdumpGSKoia1pt5hVYsK2cJSpcwzVRFnjq', '测试用户', NULL, NULL, 1, 0, NULL, NULL, 0, '127.0.0.1', '2025-09-22 03:35:00', '2025-09-22 03:35:00', NULL, NULL);
+INSERT INTO `users` VALUES (1, 'testuser', 'test@example.com', '$2y$10$gxgRAiv63rkmLDQcg1WcdumpGSKoia1pt5hVYsK2cJSpcwzVRFnjq', '测试用户', NULL, NULL, 1, 0, '2026-01-29 19:32:51', '127.0.0.1', 3, '127.0.0.1', '2025-09-22 03:35:00', '2026-01-29 19:32:59', NULL, NULL);
 
 -- ----------------------------
 -- Table structure for verification_codes

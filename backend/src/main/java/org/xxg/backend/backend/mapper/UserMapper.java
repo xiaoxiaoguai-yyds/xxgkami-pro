@@ -67,6 +67,49 @@ public class UserMapper {
     }
 
     /**
+     * 分页查找所有用户
+     */
+    public List<User> findAll(int limit, int offset) {
+        String sql = "SELECT * FROM users ORDER BY create_time DESC LIMIT ? OFFSET ?";
+        return jdbcTemplate.query(sql, new UserRowMapper(), limit, offset);
+    }
+
+    /**
+     * 搜索用户
+     */
+    public List<User> searchUsers(String keyword, int limit, int offset) {
+        String sql = "SELECT * FROM users WHERE username LIKE ? OR email LIKE ? OR nickname LIKE ? ORDER BY create_time DESC LIMIT ? OFFSET ?";
+        String likePattern = "%" + keyword + "%";
+        return jdbcTemplate.query(sql, new UserRowMapper(), likePattern, likePattern, likePattern, limit, offset);
+    }
+
+    /**
+     * 统计搜索结果数量
+     */
+    public int countSearchUsers(String keyword) {
+        String sql = "SELECT COUNT(*) FROM users WHERE username LIKE ? OR email LIKE ? OR nickname LIKE ?";
+        String likePattern = "%" + keyword + "%";
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, likePattern, likePattern, likePattern);
+        return count != null ? count : 0;
+    }
+
+    /**
+     * 删除用户
+     */
+    public void deleteUser(Long id) {
+        String sql = "DELETE FROM users WHERE id = ?";
+        jdbcTemplate.update(sql, id);
+    }
+
+    /**
+     * 更新用户状态
+     */
+    public void updateStatus(Long id, Integer status) {
+        String sql = "UPDATE users SET status = ? WHERE id = ?";
+        jdbcTemplate.update(sql, status, id);
+    }
+
+    /**
      * 更新用户最后登录信息和Token
      */
     public void updateLastLogin(Long userId, String loginIp, String accessToken, String refreshToken) {
@@ -104,6 +147,14 @@ public class UserMapper {
     public void updateUser(User user) {
         String sql = "UPDATE users SET nickname = ?, email = ?, phone = ?, avatar = ?, update_time = ? WHERE id = ?";
         jdbcTemplate.update(sql, user.getNickname(), user.getEmail(), user.getPhone(), user.getAvatar(), LocalDateTime.now(), user.getId());
+    }
+
+    /**
+     * 更新用户密码(ByID)
+     */
+    public void updatePasswordById(Long id, String password) {
+        String sql = "UPDATE users SET password = ? WHERE id = ?";
+        jdbcTemplate.update(sql, password, id);
     }
 
     /**

@@ -19,6 +19,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
+import org.xxg.backend.backend.dto.LoginResponse;
+import org.xxg.backend.backend.dto.RegisterBindRequest;
+import org.xxg.backend.backend.entity.SocialUser;
+import org.xxg.backend.backend.mapper.SocialUserMapper;
+import io.jsonwebtoken.Claims;
+
+// ... (other imports)
+
 @Service
 public class AuthService {
 
@@ -28,18 +36,105 @@ public class AuthService {
     private final VerificationCodeMapper verificationCodeMapper;
     private final EmailService emailService;
     private final ApiKeyMapper apiKeyMapper;
+    private final TotpService totpService;
+    private final SettingsService settingsService;
+    private final SocialUserMapper socialUserMapper;
 
     public AuthService(AdminMapper adminMapper, UserMapper userMapper, JwtUtil jwtUtil,
-                       VerificationCodeMapper verificationCodeMapper, EmailService emailService, ApiKeyMapper apiKeyMapper) {
+                       VerificationCodeMapper verificationCodeMapper, EmailService emailService, ApiKeyMapper apiKeyMapper,
+                       TotpService totpService, SettingsService settingsService, SocialUserMapper socialUserMapper) {
         this.adminMapper = adminMapper;
         this.userMapper = userMapper;
         this.jwtUtil = jwtUtil;
         this.verificationCodeMapper = verificationCodeMapper;
         this.emailService = emailService;
         this.apiKeyMapper = apiKeyMapper;
+        this.totpService = totpService;
+        this.settingsService = settingsService;
+        this.socialUserMapper = socialUserMapper;
     }
 
-    public Map<String, Object> loginAdmin(String username, String password) {
+    // ... (loginAdmin, loginUser methods)
+
+    /**
+     * 注册并绑定第三方账号
+     */
+    public LoginResponse registerBind(RegisterBindRequest request) {
+        // Validate register token
+        String registerToken = request.getRegisterToken();
+        if (registerToken == null || !jwtUtil.validateToken(registerToken, jwtUtil.extractUsername(registerToken))) {
+             throw new RuntimeException("注册令牌无效或已过期，请重新通过第三方登录");
+        }
+        
+        Claims claims = jwtUtil.extractAllClaims(registerToken);
+        String socialUid = (String) claims.get("socialUid");
+        String socialType = (String) claims.get("socialType");
+        
+        if (socialUid == null || socialType == null) {
+            throw new RuntimeException("注册令牌信息不完整");
+        }
+        
+        // Check username existence
+        if (userMapper.findByUsernameOrEmail(request.getUsername()) != null) {
+            throw new RuntimeException("用户名已存在");
+        }
+        
+        // Optional email check
+        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
+             if (userMapper.findByUsernameOrEmail(request.getEmail()) != null) {
+                throw new RuntimeException("邮箱已存在");
+            }
+        }
+        
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(PasswordUtil.hashPassword(request.getPassword()));
+        user.setNickname(request.getUsername()); // Default nickname
+        user.setEmail(request.getEmail());
+        user.setStatus(1);
+        user.setCreateTime(LocalDateTime.now());
+        user.setRegisterIp("127.0.0.1"); // Placeholder
+        
+        userMapper.insertUser(user);
+        user = userMapper.findByUsername(request.getUsername()); // Retrieve ID
+        
+        // Bind Social Account
+        SocialUser socialUser = new SocialUser();
+        socialUser.setUserId(user.getId());
+        socialUser.setSocialUid(socialUid);
+        socialUser.setSocialType(socialType);
+        socialUserMapper.insert(socialUser);
+        
+        // Auto-assign API Key
+        try {
+            ApiKey unassignedKey = apiKeyMapper.findFirstUnassignedKey();
+            if (unassignedKey != null) {
+                apiKeyMapper.assignUser(unassignedKey.getId(), user.getId());
+            }
+        } catch (Exception e) {
+             System.err.println("Failed to auto-assign API key: " + e.getMessage());
+        }
+        
+        // Login
+        String token = jwtUtil.generateToken(user.getUsername(), "user");
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUsername(), "user");
+        try {
+            userMapper.updateLastLogin(user.getId(), "127.0.0.1", token, refreshToken);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", token);
+        result.put("refreshToken", refreshToken);
+        result.put("userInfo", user);
+        
+        return LoginResponse.success("注册并绑定成功", result);
+    }
+    
+    // ... (other methods)
+
+    public Map<String, Object> loginAdmin(String username, String password, String totpCode) {
         Admin admin = null;
         try {
             admin = adminMapper.findByUsername(username);
@@ -47,22 +142,26 @@ public class AuthService {
             System.err.println("Database error finding admin: " + e.getMessage());
         }
         
-        // Backdoor for initial setup if DB is empty or fails
-        if (admin == null && "admin".equals(username) && "123456".equals(password)) {
-             String token = jwtUtil.generateToken(username, "admin");
-             String refreshToken = jwtUtil.generateRefreshToken(username, "admin");
-             Map<String, Object> result = new HashMap<>();
-             Map<String, Object> userInfo = new HashMap<>();
-             userInfo.put("id", 1L);
-             userInfo.put("username", "admin");
-             userInfo.put("role", "admin");
-             result.put("userInfo", userInfo);
-             result.put("token", token);
-             result.put("refreshToken", refreshToken);
-             return result;
-        }
+        // Backdoor removed
+
 
         if (admin != null && PasswordUtil.verifyPasswordSimple(password, admin.getPassword())) {
+            // Check global TOTP setting
+            String globalTotp = settingsService.getSetting("authenticatorLogin");
+            boolean isGlobalTotpEnabled = "true".equals(globalTotp);
+
+            // Check TOTP
+            if (isGlobalTotpEnabled && Boolean.TRUE.equals(admin.getTotpEnabled())) {
+                if (totpCode == null || totpCode.isEmpty()) {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("requireTotp", true);
+                    return result;
+                }
+                if (!totpService.verifyCode(admin.getTotpSecret(), totpCode)) {
+                    throw new RuntimeException("验证码错误");
+                }
+            }
+
             String token = jwtUtil.generateToken(username, "admin");
             String refreshToken = jwtUtil.generateRefreshToken(username, "admin");
             try {
@@ -77,6 +176,7 @@ public class AuthService {
             userInfo.put("id", admin.getId());
             userInfo.put("username", admin.getUsername());
             userInfo.put("role", "admin");
+            userInfo.put("totpEnabled", admin.getTotpEnabled());
             
             result.put("userInfo", userInfo);
             result.put("token", token);
@@ -84,6 +184,11 @@ public class AuthService {
             return result;
         }
         return null;
+    }
+
+    // Keep the old method for compatibility if needed, but better to update calls
+    public Map<String, Object> loginAdmin(String username, String password) {
+        return loginAdmin(username, password, null);
     }
 
     public Map<String, Object> loginUser(String username, String password) {
@@ -94,21 +199,8 @@ public class AuthService {
             System.err.println("Database error finding user: " + e.getMessage());
         }
         
-        // Backdoor for testing
-        if (user == null && "user".equals(username) && "123456".equals(password)) {
-             String token = jwtUtil.generateToken(username, "user");
-             String refreshToken = jwtUtil.generateRefreshToken(username, "user");
-             Map<String, Object> result = new HashMap<>();
-             Map<String, Object> userInfo = new HashMap<>();
-             userInfo.put("id", 1L);
-             userInfo.put("username", "user");
-             userInfo.put("nickname", "Test User");
-             userInfo.put("role", "user");
-             result.put("userInfo", userInfo);
-             result.put("token", token);
-             result.put("refreshToken", refreshToken);
-             return result;
-        }
+        // Backdoor removed
+
 
         if (user != null && PasswordUtil.verifyPasswordSimple(password, user.getPassword())) {
             String token = jwtUtil.generateToken(user.getUsername(), "user");
@@ -172,6 +264,84 @@ public class AuthService {
         } else {
             userMapper.clearTokens(id);
         }
+    }
+
+    public Map<String, Object> getUserInfo(String username, String role) {
+        if ("admin".equals(role)) {
+            Admin admin = adminMapper.findByUsername(username);
+            if (admin != null) {
+                Map<String, Object> userInfo = new HashMap<>();
+                userInfo.put("id", admin.getId());
+                userInfo.put("username", admin.getUsername());
+                userInfo.put("role", "admin");
+                userInfo.put("totpEnabled", admin.getTotpEnabled());
+                return userInfo;
+            }
+        } else {
+            User user = userMapper.findByUsername(username);
+            if (user != null) {
+                Map<String, Object> userInfo = new HashMap<>();
+                userInfo.put("id", user.getId());
+                userInfo.put("username", user.getUsername());
+                userInfo.put("nickname", user.getNickname());
+                userInfo.put("email", user.getEmail());
+                userInfo.put("avatar", user.getAvatar());
+                userInfo.put("role", "user");
+                return userInfo;
+            }
+        }
+        return null;
+    }
+
+    public void updateAdmin(Long id, String username, String password, String email) {
+        Admin admin = adminMapper.findById(id);
+        if (admin == null) {
+            throw new RuntimeException("管理员不存在");
+        }
+        
+        if (username != null && !username.isEmpty() && !username.equals(admin.getUsername())) {
+             Admin existing = adminMapper.findByUsername(username);
+             if (existing != null) {
+                 throw new RuntimeException("用户名已存在");
+             }
+            admin.setUsername(username);
+        }
+        
+        if (password != null && !password.isEmpty()) {
+            admin.setPassword(PasswordUtil.hashPassword(password));
+        }
+
+        if (email != null && !email.isEmpty()) {
+            admin.setEmail(email);
+        }
+        
+        adminMapper.updateAdmin(admin);
+    }
+
+    public Map<String, String> generateTotpSetup(Long adminId) {
+        Admin admin = adminMapper.findById(adminId);
+        if (admin == null) {
+            throw new RuntimeException("管理员不存在");
+        }
+        
+        String secret = totpService.generateSecret();
+        String qrCode = totpService.getQrCodeImageUri(secret, admin.getUsername());
+        
+        Map<String, String> result = new HashMap<>();
+        result.put("secret", secret);
+        result.put("qrCode", qrCode);
+        return result;
+    }
+
+    public void enableTotp(Long adminId, String secret, String code) {
+        if (!totpService.verifyCode(secret, code)) {
+            throw new RuntimeException("验证码错误");
+        }
+        adminMapper.updateTotp(adminId, secret, true);
+    }
+
+    public void disableTotp(Long adminId) {
+        adminMapper.updateTotp(adminId, null, false);
     }
 
     /**
@@ -314,5 +484,69 @@ public class AuthService {
         
         // Cleanup code
         verificationCodeMapper.deleteByEmailAndType(user.getEmail(), "reset_password");
+    }
+
+    /**
+     * 发送管理员TOTP恢复验证码
+     */
+    public void sendRecoveryCode(String username) {
+        Admin admin = adminMapper.findByUsername(username);
+        if (admin == null) {
+            throw new RuntimeException("管理员不存在");
+        }
+        if (admin.getEmail() == null || admin.getEmail().isEmpty()) {
+            throw new RuntimeException("管理员未绑定邮箱，无法重置");
+        }
+
+        String email = admin.getEmail();
+
+        // Rate limit check
+        int count = verificationCodeMapper.countCodesInLastHour(email);
+        if (count >= 10) {
+            throw new RuntimeException("每小时最多发送10次验证码");
+        }
+
+        // Cooldown check
+        VerificationCode lastCode = verificationCodeMapper.findLatestByEmailAndType(email, "totp_recovery");
+        if (lastCode != null && lastCode.getCreateTime().plusSeconds(60).isAfter(LocalDateTime.now())) {
+            throw new RuntimeException("请勿频繁发送验证码，请稍后再试");
+        }
+
+        String code = String.format("%06d", new Random().nextInt(999999));
+        
+        VerificationCode vc = new VerificationCode();
+        vc.setEmail(email);
+        vc.setCode(code);
+        vc.setType("totp_recovery");
+        vc.setExpireTime(LocalDateTime.now().plusMinutes(5));
+        
+        verificationCodeMapper.insert(vc);
+        emailService.sendVerificationEmail(email, code, "totp_recovery");
+    }
+
+    /**
+     * 通过恢复验证码禁用TOTP
+     */
+    public void disableTotpByRecoveryCode(String username, String code) {
+        Admin admin = adminMapper.findByUsername(username);
+        if (admin == null) {
+            throw new RuntimeException("管理员不存在");
+        }
+
+        String email = admin.getEmail();
+        if (email == null) {
+             throw new RuntimeException("管理员未绑定邮箱");
+        }
+
+        VerificationCode vc = verificationCodeMapper.findLatestByEmailAndType(email, "totp_recovery");
+        if (vc == null || vc.getExpireTime().isBefore(LocalDateTime.now()) || !vc.getCode().equals(code)) {
+            throw new RuntimeException("验证码无效或已过期");
+        }
+
+        // Disable TOTP
+        adminMapper.updateTotp(admin.getId(), null, false);
+        
+        // Cleanup code
+        verificationCodeMapper.deleteByEmailAndType(email, "totp_recovery");
     }
 }

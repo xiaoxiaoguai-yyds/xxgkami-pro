@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.xxg.backend.backend.entity.User;
 import org.xxg.backend.backend.service.UserService;
+import org.xxg.backend.backend.entity.SocialUser; // Import SocialUser
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +46,7 @@ public class UserController {
         response.put("phone", user.getPhone());
         response.put("avatar", user.getAvatar());
         response.put("createTime", user.getCreateTime());
+        response.put("hasPassword", user.getPassword() != null && !user.getPassword().isEmpty());
         
         return ResponseEntity.ok(response);
     }
@@ -64,6 +66,65 @@ public class UserController {
                 request.get("phone")
             );
             return ResponseEntity.ok(Map.of("success", true, "message", "个人信息更新成功"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/password")
+    public ResponseEntity<?> changePassword(@RequestBody Map<String, String> request) {
+        User user = getCurrentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body("未登录");
+        }
+        
+        try {
+            userService.changePassword(user.getId(), request.get("oldPassword"), request.get("newPassword"));
+            return ResponseEntity.ok(Map.of("success", true, "message", "密码修改成功"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/social")
+    public ResponseEntity<?> getSocialBindings() {
+        User user = getCurrentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body("未登录");
+        }
+        
+        try {
+            return ResponseEntity.ok(Map.of("success", true, "data", userService.getSocialBindings(user.getId())));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/social/bind")
+    public ResponseEntity<?> bindSocial(@RequestBody Map<String, String> request) {
+        User user = getCurrentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body("未登录");
+        }
+        
+        try {
+            userService.bindSocial(user.getId(), request.get("token"));
+            return ResponseEntity.ok(Map.of("success", true, "message", "绑定成功"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/social/unbind")
+    public ResponseEntity<?> unbindSocial(@RequestBody Map<String, String> request) {
+        User user = getCurrentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body("未登录");
+        }
+        
+        try {
+            userService.unbindSocial(user.getId(), request.get("type"));
+            return ResponseEntity.ok(Map.of("success", true, "message", "解绑成功"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }

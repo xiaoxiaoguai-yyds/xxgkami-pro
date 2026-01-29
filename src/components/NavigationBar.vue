@@ -37,22 +37,44 @@
           API管理
         </a>
         <a href="#" 
+           :class="{ active: activeTab === 'users' }" 
+           @click.prevent="handleTabClick('users')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          用户管理
+        </a>
+        <a href="#" 
            :class="{ active: activeTab === 'notification' }" 
            @click.prevent="handleTabClick('notification')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           通知管理
         </a>
-        <a href="#" 
-           :class="{ active: activeTab === 'settings' }" 
-           @click.prevent="handleTabClick('settings')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-          系统设置
-        </a>
+        <div class="nav-item-group" @mouseenter="showSettingsSub = true" @mouseleave="showSettingsSub = false">
+          <a href="#" 
+             :class="{ active: activeTab === 'settings' }" 
+             @click.prevent="handleTabClick('settings')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            系统设置
+            <el-icon class="sub-arrow"><ArrowDown /></el-icon>
+          </a>
+          <div class="sub-menu" v-if="showSettingsSub">
+            <div class="sub-menu-item" @click.stop="handleSubMenuClick('settings', 'basic')">基本设置</div>
+            <div class="sub-menu-item" @click.stop="handleSubMenuClick('settings', 'database')">数据库设置</div>
+            <div class="sub-menu-item" @click.stop="handleSubMenuClick('settings', 'payment')">支付设置</div>
+            <div class="sub-menu-item" @click.stop="handleSubMenuClick('settings', 'login')">登录验证</div>
+            <div class="sub-menu-item" @click.stop="handleSubMenuClick('settings', 'maintenance')">系统维护</div>
+          </div>
+        </div>
         <a href="#" 
            :class="{ active: activeTab === 'maintenance' }" 
            @click.prevent="handleTabClick('maintenance')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
           系统维护
+        </a>
+        <a href="#" 
+           :class="{ active: activeTab === 'system_info' }" 
+           @click.prevent="handleTabClick('system_info')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          系统信息
         </a>
       </nav>
     </div>
@@ -78,26 +100,68 @@
       </div>
 
       <div class="user-info">
-        <div class="user-avatar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-        </div>
-        <div class="user-details">
-          <span class="username">{{ userInfo?.username || '用户' }}</span>
-          <span class="user-type">{{ userInfo?.role === 'admin' ? '管理员' : '普通用户' }}</span>
-        </div>
-        <button class="logout-btn" @click="$emit('logout')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-          登出
-        </button>
+        <el-dropdown trigger="click" @command="handleCommand">
+          <div class="user-dropdown-trigger">
+             <div class="user-avatar">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+             </div>
+             <div class="user-details">
+               <span class="username">{{ userInfo?.username || '用户' }}</span>
+               <span class="user-type">{{ userInfo?.role === 'admin' ? '管理员' : '普通用户' }}</span>
+             </div>
+             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="profile" v-if="userInfo?.role === 'admin'">
+                <el-icon><User /></el-icon>账号设置
+              </el-dropdown-item>
+              <el-dropdown-item divided command="logout">
+                <el-icon><SwitchButton /></el-icon>退出登录
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
   </header>
+
+  <!-- 管理员账号设置弹窗 -->
+  <el-dialog
+    v-model="showAdminModal"
+    title="管理员账号设置"
+    width="400px"
+    :close-on-click-modal="false"
+    append-to-body
+  >
+    <el-form :model="adminForm" label-width="80px">
+      <el-form-item label="用户名">
+        <el-input v-model="adminForm.username" placeholder="请输入新用户名" />
+      </el-form-item>
+      <el-form-item label="邮箱">
+        <el-input v-model="adminForm.email" placeholder="请输入管理员邮箱" />
+      </el-form-item>
+      <el-form-item label="新密码">
+        <el-input v-model="adminForm.password" type="password" placeholder="留空则不修改" show-password />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="showAdminModal = false">取消</el-button>
+        <el-button type="primary" @click="updateAdminProfile" :loading="updating">
+          保存
+        </el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { authApi } from '../services/api.js'
+import { ElMessage } from 'element-plus'
 
-defineProps({
+const props = defineProps({
   userInfo: Object,
   activeTab: String
 })
@@ -105,12 +169,70 @@ defineProps({
 const emit = defineEmits(['logout', 'tab-change'])
 
 const showMessages = ref(false)
+const showSettingsSub = ref(false)
 const unreadCount = ref(0)
 const messageContainer = ref(null)
+
+// Admin Profile Logic
+const showAdminModal = ref(false)
+const updating = ref(false)
+const adminForm = reactive({
+  username: '',
+  email: '',
+  password: ''
+})
+
+const handleCommand = (command) => {
+  if (command === 'logout') {
+    emit('logout')
+  } else if (command === 'profile') {
+    openAdminModal()
+  }
+}
+
+const openAdminModal = () => {
+  adminForm.username = props.userInfo.username
+  adminForm.password = ''
+  showAdminModal.value = true
+}
+
+const updateAdminProfile = async () => {
+  if (!adminForm.username) {
+    ElMessage.warning('用户名不能为空')
+    return
+  }
+  
+  try {
+    updating.value = true
+    const res = await authApi.updateAdmin({
+      id: props.userInfo.id,
+      username: adminForm.username,
+      email: adminForm.email,
+      password: adminForm.password
+    })
+    
+    if (res.success) {
+      ElMessage.success('更新成功，请重新登录')
+      showAdminModal.value = false
+      emit('logout')
+    } else {
+      ElMessage.error(res.message || '更新失败')
+    }
+  } catch (error) {
+    ElMessage.error('更新失败: ' + error.message)
+  } finally {
+    updating.value = false
+  }
+}
 
 const handleTabClick = (tab) => {
   console.log('NavigationBar: 点击了标签页:', tab)
   emit('tab-change', tab)
+}
+
+const handleSubMenuClick = (tab, section) => {
+  emit('tab-change', tab, section)
+  showSettingsSub.value = false
 }
 
 const toggleMessages = () => {
@@ -354,16 +476,91 @@ onUnmounted(() => {
   opacity: 1;
 }
 
+.nav-item-group {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.sub-arrow {
+  font-size: 12px;
+  margin-left: 4px;
+  opacity: 0.7;
+  transition: transform 0.2s;
+}
+
+.nav-item-group:hover .sub-arrow {
+  transform: rotate(180deg);
+}
+
+.sub-menu {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem;
+  min-width: 140px;
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.sub-menu::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sub-menu-item {
+  padding: 0.5rem 1rem;
+  color: #4b5563;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.sub-menu-item:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
 .header-right {
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-.user-info {
+.user-dropdown-trigger {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.user-dropdown-trigger:hover {
+  background-color: #f3f4f6;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
 }
 
 .user-avatar {

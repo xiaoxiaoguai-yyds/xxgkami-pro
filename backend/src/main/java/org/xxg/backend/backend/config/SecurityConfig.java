@@ -3,6 +3,7 @@ package org.xxg.backend.backend.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -17,6 +18,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Autowired
@@ -32,8 +34,16 @@ public class SecurityConfig {
                 .requestMatchers("/payment/**").permitAll() // 确保支付回调公开访问
                 .requestMatchers("/maintenance/status").permitAll() // 允许未登录用户检查维护状态
                 .requestMatchers("/error").permitAll()
+                .requestMatchers("/admin/**").hasRole("ADMIN") // 强制 /admin/** 需要 ADMIN 角色
                 // .anyRequest().authenticated() // Uncomment to enforce strict security
                 .anyRequest().permitAll()
+            )
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized: Login required or token expired\",\"success\":false}");
+                })
             )
             .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

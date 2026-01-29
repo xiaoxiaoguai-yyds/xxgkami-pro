@@ -1,3 +1,5 @@
+import { ElMessage, ElMessageBox } from 'element-plus'
+
 // API服务配置
 // 优先使用环境变量中的配置，如果没有则根据环境自动判断
 // 开发环境使用 http://localhost:8080/api
@@ -98,13 +100,43 @@ async function apiRequest(endpoint, options = {}) {
            processQueue(refreshError, null);
            isRefreshing = false;
            // Clear auth data
+           const storedUserInfo = localStorage.getItem('userInfo');
+           let isAdmin = false;
+           if (storedUserInfo) {
+               try {
+                   const u = JSON.parse(storedUserInfo);
+                   if (u.role === 'admin') isAdmin = true;
+               } catch (e) {}
+           }
+
            localStorage.removeItem('token');
            localStorage.removeItem('refreshToken');
            localStorage.removeItem('user');
            localStorage.removeItem('userInfo');
            localStorage.removeItem('isLoggedIn');
-           // Redirect to login (simple reload or history push if available, but here just throw)
-           window.location.href = '/'; 
+           
+           // Show popup and redirect
+           ElMessageBox.alert('当前登录已过期，请重新登录', '登录过期', {
+             confirmButtonText: '确定',
+             type: 'warning',
+             showClose: false,
+             callback: () => {
+                // If admin, go to admin login (via reload or specific path)
+                // App.vue will handle routing based on URL
+                if (isAdmin) {
+                    // Ensure we are on an admin path so App.vue redirects to admin login
+                    if (!window.location.hash.includes('admin') && !window.location.pathname.includes('admin')) {
+                         window.location.href = '/#/admin';
+                    }
+                    window.location.reload();
+                } else {
+                    // User -> Home
+                    window.location.href = '/';
+                }
+             }
+           });
+           
+           // Throw to stop execution
            throw refreshError;
        }
     }
@@ -149,10 +181,10 @@ export const authApi = {
   /**
    * 管理员登录
    */
-  async loginAdmin(username, password) {
+  async loginAdmin(username, password, totpCode) {
     return await apiRequest('/auth/admin/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, totpCode })
     });
   },
 
@@ -186,10 +218,64 @@ export const authApi = {
     });
   },
 
+  /**
+   * 绑定注册
+   */
+  async registerBind(data) {
+    return await apiRequest('/auth/register-bind', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
   async logout(id, role) {
     return await apiRequest('/auth/logout', {
       method: 'POST',
       body: JSON.stringify({ id, role })
+    });
+  },
+
+  async updateAdmin(data) {
+    return await apiRequest('/auth/admin/update', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  /**
+   * 获取当前用户信息
+   */
+  async getUserInfo() {
+    return await apiRequest('/auth/user/info');
+  },
+
+  /**
+   * 获取TOTP配置信息
+   */
+  async setupTotp(id) {
+    return await apiRequest('/auth/totp/setup', {
+      method: 'POST',
+      body: JSON.stringify({ id })
+    });
+  },
+
+  /**
+   * 启用TOTP
+   */
+  async enableTotp(id, secret, code) {
+    return await apiRequest('/auth/totp/enable', {
+      method: 'POST',
+      body: JSON.stringify({ id, secret, code })
+    });
+  },
+
+  /**
+   * 禁用TOTP
+   */
+  async disableTotp(id) {
+    return await apiRequest('/auth/totp/disable', {
+      method: 'POST',
+      body: JSON.stringify({ id })
     });
   },
 
@@ -210,6 +296,26 @@ export const authApi = {
     return await apiRequest('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify(data)
+    });
+  },
+
+  /**
+   * 发送TOTP恢复验证码
+   */
+  async sendRecoveryCode(username) {
+    return await apiRequest('/auth/totp/recovery-code', {
+      method: 'POST',
+      body: JSON.stringify({ username })
+    });
+  },
+
+  /**
+   * 通过恢复码禁用TOTP
+   */
+  async disableTotpByRecovery(username, code) {
+    return await apiRequest('/auth/totp/disable-by-recovery', {
+      method: 'POST',
+      body: JSON.stringify({ username, code })
     });
   }
 };
@@ -251,6 +357,49 @@ export const monitorApi = {
    */
   async getAllMonitorData() {
     return await apiRequest('/monitor/all');
+  }
+};
+
+/**
+ * 用户管理API服务 (管理员)
+ */
+export const userApi = {
+  // 获取用户列表 (分页, 搜索)
+  async getUsers(page = 1, size = 10, keyword = '') {
+    const params = new URLSearchParams({ page, size });
+    if (keyword) params.append('keyword', keyword);
+    return await apiRequest(`/admin/users?${params.toString()}`);
+  },
+
+  // 创建用户
+  async createUser(userData) {
+    return await apiRequest('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // 更新用户
+  async updateUser(id, userData) {
+    return await apiRequest(`/admin/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // 删除用户
+  async deleteUser(id) {
+    return await apiRequest(`/admin/users/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // 更新用户状态
+  async updateUserStatus(id, status) {
+    return await apiRequest(`/admin/users/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
   }
 };
 
@@ -558,7 +707,7 @@ export const pricingApi = {
 /**
  * 用户个人信息API服务
  */
-export const userApi = {
+export const userProfileApi = {
   /**
    * 获取个人信息
    */
@@ -585,6 +734,43 @@ export const userApi = {
     return await apiRequest('/user/avatar', {
       method: 'POST',
       body: formData
+    });
+  },
+
+  /**
+   * 修改密码
+   */
+  async changePassword(oldPassword, newPassword) {
+    return await apiRequest('/user/password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword })
+    });
+  },
+
+  /**
+   * 获取社交账号绑定列表
+   */
+  async getSocialBindings() {
+    return await apiRequest('/user/social');
+  },
+
+  /**
+   * 绑定社交账号
+   */
+  async bindSocial(token) {
+    return await apiRequest('/user/social/bind', {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    });
+  },
+
+  /**
+   * 解绑社交账号
+   */
+  async unbindSocial(type) {
+    return await apiRequest('/user/social/unbind', {
+      method: 'POST',
+      body: JSON.stringify({ type })
     });
   }
 };
@@ -663,6 +849,7 @@ export default {
   orderApi,
   apiKeyApi,
   userApi,
+  userProfileApi,
   maintenanceApi,
   pricingApi,
   paymentApi

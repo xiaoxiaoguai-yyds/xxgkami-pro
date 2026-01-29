@@ -9,10 +9,13 @@ public class Admin {
     private Long id;
     private String username;
     private String password;
+    private String email;
     private LocalDateTime createTime;
     private LocalDateTime lastLogin;
     private String accessToken;
     private String refreshToken;
+    private String totpSecret;
+    private Boolean totpEnabled;
 
     // 构造函数
     public Admin() {}
@@ -47,6 +50,14 @@ public class Admin {
         this.password = password;
     }
 
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public LocalDateTime getCreateTime() {
         return createTime;
     }
@@ -77,6 +88,22 @@ public class Admin {
 
     public void setRefreshToken(String refreshToken) {
         this.refreshToken = refreshToken;
+    }
+
+    public String getTotpSecret() {
+        return totpSecret;
+    }
+
+    public void setTotpSecret(String totpSecret) {
+        this.totpSecret = totpSecret;
+    }
+
+    public Boolean getTotpEnabled() {
+        return totpEnabled;
+    }
+
+    public void setTotpEnabled(Boolean totpEnabled) {
+        this.totpEnabled = totpEnabled;
     }
 
     @Override

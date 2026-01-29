@@ -629,19 +629,40 @@ const newApiKey = reactive({
 const fetchApiKeys = async () => {
   try {
     const data = await apiKeyApi.getAllApiKeys()
-    // Map backend data to frontend model
-    apiKeys.value = data.map(key => ({
-      id: key.id,
-      name: key.keyName, // Use keyName for user-defined name
-      key: key.apiKey,   // Use apiKey for the secret key
-      description: key.description,
-      isActive: key.status === 1,
-      createdAt: key.createTime,
-      lastUsed: null, // Not implemented yet
-      requestCount: 0, // Not implemented yet
-      cardCodes: [], // Mock
-      webhookConfig: key.webhook_config ? JSON.parse(key.webhook_config) : null,
-      assignedUsers: key.assignedUsers || []
+    // Map backend data to frontend model and fetch related data
+    apiKeys.value = await Promise.all(data.map(async key => {
+      let cardCodes = [];
+      try {
+        // Fetch real cards count
+        const cardsRes = await cardApi.getApiKeyCards(key.id);
+        if (cardsRes.success) {
+           cardCodes = cardsRes.data.map(c => ({
+              id: c.id,
+              code: c.card_key,
+              status: c.status === 0 ? 'unused' : 'used',
+              expiryDate: c.expire_time,
+              type: c.card_type === 'time' ? '时间卡' : '次数卡',
+              value: c.card_type === 'time' ? `${c.duration}天` : `${c.total_count}次`,
+              usedBy: c.device_id ? `Device ${c.device_id.substring(0, 6)}...` : null
+           }));
+        }
+      } catch (e) {
+        console.warn(`Failed to fetch cards for key ${key.id}`, e);
+      }
+
+      return {
+        id: key.id,
+        name: key.keyName, // Use keyName for user-defined name
+        key: key.apiKey,   // Use apiKey for the secret key
+        description: key.description,
+        isActive: key.status === 1,
+        createdAt: key.createTime,
+        lastUsed: null, // Not implemented yet
+        requestCount: 0, // Not implemented yet
+        cardCodes: cardCodes, 
+        webhookConfig: key.webhook_config ? JSON.parse(key.webhook_config) : null,
+        assignedUsers: key.assignedUsers || []
+      }
     }))
   } catch (error) {
     console.error('Failed to fetch API keys:', error)
@@ -775,7 +796,7 @@ const fetchCardCodes = async (apiKeyId) => {
     const cards = res.data.map(c => ({
        id: c.id,
        code: c.card_key,
-       status: c.status === 0 ? 'unused' : 'used',
+       status: c.status === 0 ? 'unused' : 'used', // 0: 未使用, 1: 已使用 (时间卡即使激活也是1)
        expiryDate: c.expire_time,
        type: c.card_type === 'time' ? '时间卡' : '次数卡',
        value: c.card_type === 'time' ? `${c.duration}天` : `${c.total_count}次`,
@@ -808,7 +829,7 @@ const generateCardCodes = async () => {
       duration: newCardCodeType.value === 'time' ? newCardCodeValue.value : 0,
       total_count: newCardCodeType.value === 'count' ? newCardCodeValue.value : 0,
       verify_method: 'web',
-      encryption_type: 'sha1',
+      encryption_type: 'advanced',
       allow_reverify: 1,
       api_key_id: currentApiKey.value.id
     })
@@ -1169,8 +1190,11 @@ onMounted(() => {
 
 // Computed
 const availableUsers = computed(() => {
-  if (!allUsers.value || !currentApiKey.value.assignedUsers) {
-    return allUsers.value || []
+  if (!allUsers.value || !Array.isArray(allUsers.value)) {
+    return []
+  }
+  if (!currentApiKey.value.assignedUsers) {
+    return allUsers.value
   }
   const assignedUserIds = currentApiKey.value.assignedUsers.map(u => u.id)
   return allUsers.value.filter(user => !assignedUserIds.includes(user.id))
@@ -1227,7 +1251,11 @@ const previewUrl = computed(() => {
     })
     const queryString = queryParts.join('&')
     
-    return url.includes('?') ? `${url}&${queryString}` : `${url}?${queryString}`
+    // Check if url already has query params
+    if (queryString) {
+        return url.includes('?') ? `${url}&${queryString}` : `${url}?${queryString}`
+    }
+    return url
   }
 
   return url
