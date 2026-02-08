@@ -756,17 +756,26 @@ verify_domain() {
     local domain=$1
     echo -e "${YELLOW}正在验证域名解析: $domain${NC}"
     
-    local public_ip=$(curl -s ifconfig.me)
+    # 优先获取 IPv4 公网 IP
+    local public_ip=$(curl -s -4 ifconfig.me)
+    if [ -z "$public_ip" ]; then
+        public_ip=$(curl -s ifconfig.me)
+    fi
+
     if [ -z "$public_ip" ]; then
         echo -e "${YELLOW}无法获取服务器公网 IP，跳过自动验证${NC}"
         return 0
     fi
     
     local domain_ip=""
-    if command -v getent >/dev/null 2>&1; then
-        domain_ip=$(getent hosts "$domain" | awk '{print $1}' | head -n 1)
-    elif command -v ping >/dev/null 2>&1; then
-        domain_ip=$(ping -c 1 "$domain" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | head -n 1)
+    # 优先使用 ping 获取 IPv4 地址 (通过 grep 筛选 IPv4 格式)
+    if command -v ping >/dev/null 2>&1; then
+        domain_ip=$(ping -c 1 "$domain" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+    fi
+    
+    # 如果 ping 失败，尝试 getent 并筛选 IPv4
+    if [ -z "$domain_ip" ] && command -v getent >/dev/null 2>&1; then
+        domain_ip=$(getent hosts "$domain" | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
     fi
     
     if [ -z "$domain_ip" ]; then
