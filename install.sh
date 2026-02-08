@@ -530,6 +530,12 @@ if [ -d "$INSTALL_DIR" ]; then
             else
                 echo -e "${YELLOW}未找到配置文件，跳过备份${NC}"
             fi
+            
+            # 备份密钥目录 (防止密钥丢失导致数据无法解密)
+            if [ -d "$INSTALL_DIR/backend/keys" ]; then
+                cp -r "$INSTALL_DIR/backend/keys" /tmp/keys_backup
+                echo -e "${GREEN}已备份密钥目录到 /tmp/keys_backup${NC}"
+            fi
         else
             echo -e "${YELLOW}跳过配置文件备份${NC}"
         fi
@@ -545,6 +551,14 @@ if [ -d "$INSTALL_DIR" ]; then
         # 恢复配置提示
         if [ -f "/tmp/application.properties.bak" ] && [[ "$BACKUP_CHOICE" == "y" || "$BACKUP_CHOICE" == "Y" ]]; then
             echo -e "${YELLOW}提示: 之前的配置文件已备份 (/tmp/application.properties.bak)，如需恢复请手动操作${NC}"
+        fi
+        
+        # 自动恢复密钥目录
+        if [ -d "/tmp/keys_backup" ] && [[ "$BACKUP_CHOICE" == "y" || "$BACKUP_CHOICE" == "Y" ]]; then
+             mkdir -p "$INSTALL_DIR/backend"
+             cp -r /tmp/keys_backup "$INSTALL_DIR/backend/keys"
+             echo -e "${GREEN}已自动恢复密钥目录${NC}"
+             rm -rf /tmp/keys_backup
         fi
     elif [ "$OVERWRITE_CHOICE" == "c" ] || [ "$OVERWRITE_CHOICE" == "C" ]; then
         echo -e "${RED}用户取消安装，脚本退出${NC}"
@@ -801,13 +815,20 @@ NGINX_CONF="/etc/nginx/conf.d/xxgkami.conf"
 read -p "是否需要绑定域名？(y/n): " BIND_DOMAIN_CHOICE
 
 if [ "$BIND_DOMAIN_CHOICE" == "y" ] || [ "$BIND_DOMAIN_CHOICE" == "Y" ]; then
-    # 1. 获取服务器公网 IP
-    PUBLIC_IP=$(curl -s ifconfig.me)
+    # 1. 获取服务器公网 IP (优先 IPv4)
+    PUBLIC_IP=$(curl -s -4 ifconfig.me)
+    if [ -z "$PUBLIC_IP" ]; then
+        PUBLIC_IP=$(curl -s ifconfig.me)
+    fi
     echo -e "${GREEN}检测到服务器公网 IP: ${PUBLIC_IP}${NC}"
     
     # 2. 输入域名
     while true; do
         read -p "请输入您要绑定的域名 (例如: example.com): " USER_DOMAIN
+        
+        # 自动去除 http://, https://, 和尾部 /
+        USER_DOMAIN=$(echo "$USER_DOMAIN" | sed 's|http://||g' | sed 's|https://||g' | sed 's|/$||g')
+        
         if [ -z "$USER_DOMAIN" ]; then
             continue
         fi
@@ -823,11 +844,22 @@ if [ "$BIND_DOMAIN_CHOICE" == "y" ] || [ "$BIND_DOMAIN_CHOICE" == "Y" ]; then
         fi
     done
     
+    # 移除默认配置以避免冲突
+    if [ -f /etc/nginx/sites-enabled/default ]; then
+        rm -f /etc/nginx/sites-enabled/default
+        echo -e "${YELLOW}已移除默认 Nginx 站点配置 (/etc/nginx/sites-enabled/default)${NC}"
+    fi
+    if [ -f /etc/nginx/conf.d/default.conf ]; then
+        mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak
+        echo -e "${YELLOW}已备份默认 Nginx 配置文件 (/etc/nginx/conf.d/default.conf -> .bak)${NC}"
+    fi
+
     # 3. 生成 Nginx 配置 (HTTP)
     echo -e "${YELLOW}正在生成 Nginx 配置 (HTTP)...${NC}"
     cat > $NGINX_CONF <<EOF
 server {
-    listen 80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name $USER_DOMAIN;
 
     # 字符集配置
@@ -852,6 +884,11 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # 增加超时时间，防止长时间请求中断
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
     }
 }
 EOF
