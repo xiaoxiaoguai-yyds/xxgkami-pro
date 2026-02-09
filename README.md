@@ -232,6 +232,23 @@ curl -O https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/hea
 
 ---
 
+## ☕ 赞助与支持
+
+如果您觉得本项目对您有帮助，可以请作者喝一杯咖啡，这将成为我们持续更新的动力！
+
+<div align="center">
+  <a href="https://ifdian.net/a/xxgyyds" target="_blank">
+    <img src="aifadian.svg" width="200" alt="爱发电赞助" />
+  </a>
+  <br/>
+  <br/>
+  <a href="https://ifdian.net/a/xxgyyds">
+    <img src="https://img.shields.io/badge/Sponsor-爱发电-946CE6?style=for-the-badge&logo=electricity&logoColor=white" alt="爱发电" />
+  </a>
+</div>
+
+---
+
 ## 📞 联系我们
 
 ### 💬 **社区交流**
