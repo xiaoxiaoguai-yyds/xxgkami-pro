@@ -4,11 +4,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.xxg.backend.backend.entity.ApiKey;
 import org.xxg.backend.backend.entity.Card;
+import org.xxg.backend.backend.service.ApiKeyService;
 import org.xxg.backend.backend.service.CardService;
 
 import java.util.List;
 import java.util.Map;
+
+import org.xxg.backend.backend.util.CustomCardObfuscator;
 
 /**
  * 卡密控制器
@@ -19,6 +23,12 @@ public class CardController {
 
     @Autowired
     private CardService cardService;
+
+    @Autowired
+    private ApiKeyService apiKeyService;
+    
+    @Autowired
+    private CustomCardObfuscator customCardObfuscator;
 
     /**
      * 获取用户的卡密
@@ -119,27 +129,43 @@ public class CardController {
         }
         
         try {
-            // Note: Currently cardService.useCard doesn't take apiKey as parameter, 
-            // but the original code had a version that might.
-            // Let's check CardService signature.
-            // Assuming useCard(String cardKey, String deviceId, String ipAddress, Long apiKeyId)
-            
-            // We need to resolve apiKeyId from apiKeyStr if provided
+            // Resolve API Key ID if provided
             Long apiKeyId = null;
             if (apiKeyStr != null && !apiKeyStr.isEmpty()) {
-                // TODO: Resolve API Key ID from String. For now, assuming user passes ID or we need a service method.
-                // Since we don't have ApiKeyService injected here, we might need to add it or just pass null for now if not critical for this specific fix.
-                // However, the user mentioned "custom interface uses card", implying API Key context.
-                // Let's check if we can easily look it up.
-                // Ideally, we should inject ApiKeyMapper or Service.
+                ApiKey apiKey = apiKeyService.getByApiKey(apiKeyStr);
+                if (apiKey == null) {
+                    return ResponseEntity.status(403).body(Map.of("success", false, "message", "Invalid API Key"));
+                }
+                if (apiKey.getStatus() != 1) {
+                    return ResponseEntity.status(403).body(Map.of("success", false, "message", "API Key is disabled"));
+                }
+                apiKeyId = apiKey.getId();
+                
+                // 检查是否开启了卡密加密验证
+                if (Boolean.TRUE.equals(apiKey.getEnableCardEncryption())) {
+                    // 如果开启了加密验证，必须对传入的 cardKey 进行解密
+                    // 尝试解密
+                    try {
+                        String decryptedKey = customCardObfuscator.deobfuscate(cardKey);
+                        System.out.println("DEBUG: Encrypted Key: " + cardKey);
+                        System.out.println("DEBUG: Decrypted Key: " + decryptedKey);
+                        System.out.println("DEBUG: Contains $ ? " + (decryptedKey != null && decryptedKey.contains("$")));
+                        
+                        if (decryptedKey == null) {
+                            throw new RuntimeException("Decryption failed");
+                        }
+                        // 使用解密后的卡密进行后续验证
+                        cardKey = decryptedKey;
+                    } catch (Exception e) {
+                        return ResponseEntity.badRequest().body(Map.of("success", false, "message", "卡密格式错误或解密失败(Encrypted Card Key Required)"));
+                    }
+                }
+                
+                // Update usage stats
+                apiKeyService.updateUsage(apiKeyId);
             }
             
-            // For now, calling the overload that accepts apiKeyId (passing null if not resolved, or we can update CardController to inject ApiKeyService)
-            // But wait, CardService has useCard(..., Long apiKeyId).
-            // Let's just call the 3-arg version for now which calls the 4-arg version with null.
-            // If the user needs API Key validation, we need to implement that lookup.
-            
-            cardService.useCard(cardKey, deviceId, ipAddress);
+            cardService.useCard(cardKey, deviceId, ipAddress, apiKeyId);
             return ResponseEntity.ok(Map.of("success", true, "message", "Card used successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));

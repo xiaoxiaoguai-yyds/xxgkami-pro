@@ -24,7 +24,9 @@
         <tbody>
           <tr v-for="key in paginatedKeys" :key="key.id">
             <td>{{ key.id }}</td>
-            <td class="key-code">{{ key.card_key }}</td>
+            <td class="key-code" @click="copyKey(key.card_key)" title="点击复制">
+              {{ key.card_key }}
+            </td>
             <td>
               <span class="card-type" :class="key.card_type">
                 {{ getCardTypeText(key.card_type) }}
@@ -199,21 +201,6 @@
             </select>
           </div>
           <div class="form-group">
-            <label>验证方式</label>
-            <select v-model="editingKey.verify_method">
-              <option value="web">Web验证</option>
-              <option value="post">POST验证</option>
-              <option value="get">GET验证</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>加密类型</label>
-            <select v-model="editingKey.encryption_type">
-              <option value="sha1">SHA1</option>
-              <option value="rc4">RC4</option>
-            </select>
-          </div>
-          <div class="form-group">
             <label>允许重复验证</label>
             <select v-model="editingKey.allow_reverify">
               <option value="1">允许</option>
@@ -261,20 +248,6 @@
             <input type="number" v-model="newKey.total_count" min="1" max="10000" />
           </div>
           <div class="form-group">
-            <label>验证方式</label>
-            <select v-model="newKey.verify_method">
-              <option value="web">Web验证</option>
-              <option value="post">POST验证</option>
-              <option value="get">GET验证</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>加密类型</label>
-            <select v-model="newKey.encryption_type">
-              <option value="advanced">高级加密 (AES-256-GCM + ECC + Argon2id)</option>
-            </select>
-          </div>
-          <div class="form-group">
             <label>允许重复验证</label>
             <select v-model="newKey.allow_reverify">
               <option value="1">允许</option>
@@ -296,6 +269,7 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   keys: Array
@@ -491,12 +465,14 @@ const deleteKey = (keyId) => {
   }
 }
 
-const copyKey = (cardKey) => {
-  navigator.clipboard.writeText(cardKey).then(() => {
-    alert('卡密已复制到剪贴板')
-  }).catch(() => {
-    alert('复制失败，请手动复制')
-  })
+const copyKey = async (cardKey) => {
+  try {
+    await navigator.clipboard.writeText(cardKey)
+    ElMessage.success('卡密已复制到剪贴板')
+  } catch (err) {
+    console.error('Copy failed:', err)
+    ElMessage.error('复制失败，请手动复制')
+  }
 }
 </script>
 
@@ -657,6 +633,13 @@ const copyKey = (cardKey) => {
   max-width: 100%;
   display: block;
   overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.key-code:hover {
+  background: #e2e8f0;
+  color: #2563eb;
 }
 
 .card-type {

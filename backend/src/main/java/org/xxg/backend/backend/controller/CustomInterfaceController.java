@@ -29,6 +29,9 @@ public class CustomInterfaceController {
     @Autowired
     private CardService cardService;
 
+    @Autowired
+    private org.xxg.backend.backend.util.CustomCardObfuscator customCardObfuscator;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @RequestMapping(value = "/use", method = {RequestMethod.GET, RequestMethod.POST}, produces = "application/json")
@@ -136,6 +139,19 @@ public class CustomInterfaceController {
 
             if (cardKey == null) {
                 throw new RuntimeException("Could not resolve 'card_key' from request parameters");
+            }
+
+            // Check encryption
+            if (Boolean.TRUE.equals(apiKey.getEnableCardEncryption())) {
+                 try {
+                     String decryptedKey = customCardObfuscator.deobfuscate(cardKey);
+                     if (decryptedKey == null) {
+                         throw new RuntimeException("Decryption failed");
+                     }
+                     cardKey = decryptedKey;
+                 } catch (Exception e) {
+                     throw new RuntimeException("卡密格式错误或解密失败(Encrypted Card Key Required)");
+                 }
             }
 
             // 5. Use Card

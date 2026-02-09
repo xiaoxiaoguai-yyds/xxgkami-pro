@@ -25,6 +25,9 @@ public class ApiKey {
     @JsonProperty("webhook_config")
     private String webhookConfig;
 
+    @JsonProperty("enable_card_encryption")
+    private Boolean enableCardEncryption;
+
     public ApiKey() {}
 
     public Long getId() { return id; }
@@ -71,4 +74,7 @@ public class ApiKey {
 
     public String getWebhookConfig() { return webhookConfig; }
     public void setWebhookConfig(String webhookConfig) { this.webhookConfig = webhookConfig; }
+
+    public Boolean getEnableCardEncryption() { return enableCardEncryption; }
+    public void setEnableCardEncryption(Boolean enableCardEncryption) { this.enableCardEncryption = enableCardEncryption; }
 }

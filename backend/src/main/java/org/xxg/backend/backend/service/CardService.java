@@ -428,6 +428,18 @@ public class CardService {
             
             // Hash Check
             String cardHash = advancedCryptoUtil.hashArgon2id(payload.cardId, keyManagerService.getPepper());
+            
+            // Verify API Key binding for Advanced Card
+            // We need to look up the card metadata (apiKeyId) from the main cards table using the hash or key
+            // Since we don't store apiKeyId in payload or card_status, we rely on cardMapper.findByEncryptedKey (if indexed) or similar.
+            // But cardMapper.findByCardKey(fullKey) should work if the fullKey matches exactly.
+            Card cardMetadata = cardMapper.findByCardKey(fullKey);
+            if (cardMetadata != null && cardMetadata.getApiKeyId() != null) {
+                 if (apiKeyId == null || !cardMetadata.getApiKeyId().equals(apiKeyId)) {
+                     throw new RuntimeException("该卡密为专属卡密，当前API密钥无法使用");
+                 }
+            }
+            
             CardStatus statusRecord = cardStatusMapper.findByCardHash(cardHash);
             
             if (statusRecord == null) {

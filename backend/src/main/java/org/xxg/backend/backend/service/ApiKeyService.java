@@ -40,10 +40,11 @@ public class ApiKeyService {
     }
 
     @Transactional
-    public ApiKey createApiKey(String name, String description) {
+    public ApiKey createApiKey(String name, String description, Boolean enableCardEncryption) {
         ApiKey apiKey = new ApiKey();
         apiKey.setKeyName(name); // Map input name to keyName
         apiKey.setDescription(description);
+        apiKey.setEnableCardEncryption(enableCardEncryption);
         
         // Generate api_key (32 chars)
         String secret = UUID.randomUUID().toString().replace("-", ""); // 32 chars
@@ -62,13 +63,14 @@ public class ApiKeyService {
     }
 
     @Transactional
-    public void updateApiKey(Long id, String name, String description, Integer status, String webhookConfig) {
+    public void updateApiKey(Long id, String name, String description, Integer status, String webhookConfig, Boolean enableCardEncryption) {
         ApiKey apiKey = apiKeyMapper.findById(id);
         if (apiKey != null) {
             apiKey.setKeyName(name);
             apiKey.setDescription(description);
             apiKey.setStatus(status);
             apiKey.setWebhookConfig(webhookConfig);
+            apiKey.setEnableCardEncryption(enableCardEncryption);
             apiKeyMapper.update(apiKey);
         }
     }

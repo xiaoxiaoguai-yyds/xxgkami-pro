@@ -109,6 +109,16 @@
             <label>描述</label>
             <textarea v-model="newApiKey.description" rows="3" placeholder="请输入密钥描述（可选）"></textarea>
           </div>
+          <div class="form-group">
+            <label class="switch-container">
+              <div class="switch">
+                <input type="checkbox" v-model="newApiKey.enableCardEncryption">
+                <span class="slider round"></span>
+              </div>
+              <span class="switch-text">开启卡密加密验证</span>
+            </label>
+            <small style="color: #666; font-size: 0.8rem; display: block; margin-top: 0.2rem;">开启后，调用接口必须传入加密后的卡密，系统会自动解密验证。</small>
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showCreateModal = false">取消</button>
@@ -137,6 +147,16 @@
           <div class="form-group">
             <label>描述</label>
             <textarea v-model="editingKey.description" rows="3" placeholder="请输入密钥描述（可选）"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="switch-container">
+              <div class="switch">
+                <input type="checkbox" v-model="editingKey.enableCardEncryption">
+                <span class="slider round"></span>
+              </div>
+              <span class="switch-text">开启卡密加密验证</span>
+            </label>
+            <small style="color: #666; font-size: 0.8rem; display: block; margin-top: 0.2rem;">开启后，调用接口必须传入加密后的卡密，系统会自动解密验证。</small>
           </div>
 
         </div>
@@ -202,6 +222,10 @@
                 <button class="copy-btn small" @click="copyCardCode(cardCode.code)" title="复制卡密">
                   <i class="fas fa-copy"></i>
                   复制
+                </button>
+                <button v-if="currentApiKey.enableCardEncryption" class="copy-btn small warning" @click="copyEncryptedCardCode(cardCode.code)" title="复制加密卡密">
+                  <i class="fas fa-lock"></i>
+                  加密复制
                 </button>
                 <button class="btn-danger small" @click="deleteCardCode(cardCode.id)" v-if="cardCode.status === 'unused'">
                   <i class="fas fa-trash"></i>
@@ -617,12 +641,14 @@ watch(() => interfaceConfig.isCustomUrl, (isCustom) => {
 const editingKey = reactive({
   id: null,
   name: '',
-  description: ''
+  description: '',
+  enableCardEncryption: false
 })
 
 const newApiKey = reactive({
   name: '',
-  description: ''
+  description: '',
+  enableCardEncryption: false
 })
 
 // Methods
@@ -661,7 +687,8 @@ const fetchApiKeys = async () => {
         requestCount: 0, // Not implemented yet
         cardCodes: cardCodes, 
         webhookConfig: key.webhook_config ? JSON.parse(key.webhook_config) : null,
-        assignedUsers: key.assignedUsers || []
+        assignedUsers: key.assignedUsers || [],
+        enableCardEncryption: key.enable_card_encryption || false
       }
     }))
   } catch (error) {
@@ -685,12 +712,14 @@ const createApiKey = async () => {
   try {
     await apiKeyApi.createApiKey({
       name: newApiKey.name,
-      description: newApiKey.description
+      description: newApiKey.description,
+      enable_card_encryption: newApiKey.enableCardEncryption
     })
     ElMessage.success('创建成功')
     showCreateModal.value = false
     newApiKey.name = ''
     newApiKey.description = ''
+    newApiKey.enableCardEncryption = false
     fetchApiKeys()
   } catch (error) {
     console.error('Create failed:', error)
@@ -703,9 +732,19 @@ const saveApiKey = async () => {
     await apiKeyApi.updateApiKey(editingKey.id, {
       name: editingKey.name,
       description: editingKey.description,
-      status: editingKey.isActive ? 1 : 0 // Preserve status if we had it in editingKey
+      status: editingKey.isActive ? 1 : 0, // Preserve status if we had it in editingKey
+      enable_card_encryption: editingKey.enableCardEncryption
     })
     ElMessage.success('保存成功')
+    
+    // Update local list directly to reflect changes immediately
+    const keyIndex = apiKeys.value.findIndex(k => k.id === editingKey.id)
+    if (keyIndex !== -1) {
+      apiKeys.value[keyIndex].name = editingKey.name
+      apiKeys.value[keyIndex].description = editingKey.description
+      apiKeys.value[keyIndex].enableCardEncryption = editingKey.enableCardEncryption
+    }
+    
     showEditModal.value = false
     fetchApiKeys()
   } catch (error) {
@@ -853,6 +892,34 @@ const deleteCardCode = async (cardId) => {
 const copyCardCode = (code) => {
   navigator.clipboard.writeText(code).then(() => {
     ElMessage.success('卡密已复制')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+// 简单的前端混淆实现，与后端 CustomCardObfuscator 保持一致
+// 算法：URL编码 -> 反转 -> Base64 -> 替换字符
+const obfuscateCardKey = (rawKey) => {
+  if (!rawKey) return rawKey
+  try {
+    // 1. URL 编码
+    const encoded = encodeURIComponent(rawKey)
+    // 2. 字符串反转
+    const reversed = encoded.split('').reverse().join('')
+    // 3. Base64 编码 (使用 btoa，注意处理中文)
+    const base64 = btoa(reversed)
+    // 4. 字符替换
+    return base64.replace(/e/g, '*').replace(/U/g, '-')
+  } catch (e) {
+    console.error('Obfuscation failed:', e)
+    return rawKey
+  }
+}
+
+const copyEncryptedCardCode = (code) => {
+  const encrypted = obfuscateCardKey(code)
+  navigator.clipboard.writeText(encrypted).then(() => {
+    ElMessage.success('加密卡密已复制')
   }).catch(() => {
     ElMessage.error('复制失败')
   })
@@ -1136,6 +1203,10 @@ const saveInterfaceConfig = async () => {
     
     // Update local state
     currentApiKey.value.webhookConfig = JSON.parse(configStr)
+    // Also update enableCardEncryption if it was changed in edit modal (although this is saveInterfaceConfig, not saveApiKey)
+    // Wait, saveInterfaceConfig only updates webhook_config.
+    // saveApiKey updates enable_card_encryption.
+    
     const keyIndex = apiKeys.value.findIndex(k => k.id === currentApiKey.value.id)
     if (keyIndex !== -1) {
       apiKeys.value[keyIndex].webhookConfig = JSON.parse(configStr)
@@ -1154,6 +1225,7 @@ const editApiKey = (apiKey) => {
   editingKey.id = apiKey.id
   editingKey.name = apiKey.name
   editingKey.description = apiKey.description
+  editingKey.enableCardEncryption = apiKey.enableCardEncryption
   // editingKey.isActive = apiKey.isActive // If we want to edit status in modal
   showEditModal.value = true
 }
@@ -1898,6 +1970,14 @@ const copyPreviewUrl = () => {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.copy-btn.warning {
+  background: #f59e0b;
+}
+
+.copy-btn.warning:hover {
+  background: #d97706;
 }
 
 .empty-card-codes,

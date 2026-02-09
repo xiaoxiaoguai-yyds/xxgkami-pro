@@ -182,28 +182,31 @@ const showToast = (message, type = 'info') => {
 const loadSettings = async () => {
   try {
     loading.value = true
-    const settings = await settingsApi.getAllSettings()
+    const res = await settingsApi.getAllSettings()
     
-    // 映射邮箱设置
-    if (settings.smtp_server) emailSettings.smtpServer = settings.smtp_server
-    if (settings.smtp_port) emailSettings.smtpPort = parseInt(settings.smtp_port)
-    if (settings.smtp_email) emailSettings.senderEmail = settings.smtp_email
-    if (settings.smtp_password) emailSettings.senderPassword = settings.smtp_password
-    if (settings.smtp_ssl) emailSettings.enableSSL = settings.smtp_ssl === 'true'
-    if (settings.sender_name) emailSettings.senderName = settings.sender_name
+    if (res.success && res.data) {
+      const settings = res.data
 
-    // 映射通知类型
-    if (settings.notify_user_reg) notificationTypes.userRegistration = settings.notify_user_reg === 'true'
-    if (settings.notify_order_create) notificationTypes.orderCreated = settings.notify_order_create === 'true'
-    if (settings.notify_key_used) notificationTypes.keyUsed = settings.notify_key_used === 'true'
-    if (settings.notify_sys_maint) notificationTypes.systemMaintenance = settings.notify_sys_maint === 'true'
-    if (settings.notify_sec_alert) notificationTypes.securityAlert = settings.notify_sec_alert === 'true'
-
-    // 映射邮件模板
-    if (settings.tpl_user_reg) emailTemplates.userRegistration = settings.tpl_user_reg
-    if (settings.tpl_order_notify) emailTemplates.orderNotification = settings.tpl_order_notify
-    if (settings.tpl_sys_maint) emailTemplates.systemMaintenance = settings.tpl_sys_maint
-    
+      // 映射邮箱设置
+      if (settings.smtp_server) emailSettings.smtpServer = settings.smtp_server
+      if (settings.smtp_port) emailSettings.smtpPort = parseInt(settings.smtp_port)
+      if (settings.smtp_email) emailSettings.senderEmail = settings.smtp_email
+      if (settings.smtp_password) emailSettings.senderPassword = settings.smtp_password
+      if (settings.smtp_ssl) emailSettings.enableSSL = settings.smtp_ssl === 'true'
+      if (settings.sender_name) emailSettings.senderName = settings.sender_name
+  
+      // 映射通知类型
+      if (settings.notify_user_reg) notificationTypes.userRegistration = settings.notify_user_reg === 'true'
+      if (settings.notify_order_create) notificationTypes.orderCreated = settings.notify_order_create === 'true'
+      if (settings.notify_key_used) notificationTypes.keyUsed = settings.notify_key_used === 'true'
+      if (settings.notify_sys_maint) notificationTypes.systemMaintenance = settings.notify_sys_maint === 'true'
+      if (settings.notify_sec_alert) notificationTypes.securityAlert = settings.notify_sec_alert === 'true'
+  
+      // 映射邮件模板
+      if (settings.tpl_user_reg) emailTemplates.userRegistration = settings.tpl_user_reg
+      if (settings.tpl_order_notify) emailTemplates.orderNotification = settings.tpl_order_notify
+      if (settings.tpl_sys_maint) emailTemplates.systemMaintenance = settings.tpl_sys_maint
+    }
   } catch (error) {
     console.error('加载设置失败:', error)
     showToast('加载设置失败: ' + error.message, 'error')
@@ -238,8 +241,17 @@ const saveSettings = async () => {
       tpl_sys_maint: emailTemplates.systemMaintenance
     }
 
-    await settingsApi.saveSettings(settingsToSave)
-    showToast('通知设置已保存', 'success')
+    const res = await settingsApi.saveSettings(settingsToSave)
+    
+    if (res.success) {
+        showToast('通知设置已保存', 'success')
+        // 延迟1秒后刷新页面
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+    } else {
+        showToast(res.message || '保存失败', 'error')
+    }
   } catch (error) {
     console.error('保存设置失败:', error)
     showToast('保存设置失败: ' + error.message, 'error')

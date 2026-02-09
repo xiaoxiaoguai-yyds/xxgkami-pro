@@ -18,10 +18,12 @@ public class OpenApiController {
 
     private final ApiKeyService apiKeyService;
     private final CardService cardService;
+    private final org.xxg.backend.backend.util.CustomCardObfuscator customCardObfuscator;
 
-    public OpenApiController(ApiKeyService apiKeyService, CardService cardService) {
+    public OpenApiController(ApiKeyService apiKeyService, CardService cardService, org.xxg.backend.backend.util.CustomCardObfuscator customCardObfuscator) {
         this.apiKeyService = apiKeyService;
         this.cardService = cardService;
+        this.customCardObfuscator = customCardObfuscator;
     }
 
     /**
@@ -66,6 +68,22 @@ public class OpenApiController {
             response.put("message", "API Key is disabled");
             response.put("success", false);
             return ResponseEntity.status(403).body(response);
+        }
+
+        // Check encryption
+        if (Boolean.TRUE.equals(keyEntity.getEnableCardEncryption())) {
+            try {
+                String decryptedKey = customCardObfuscator.deobfuscate(cardKey);
+                if (decryptedKey == null) {
+                    throw new RuntimeException("Decryption failed");
+                }
+                cardKey = decryptedKey;
+            } catch (Exception e) {
+                response.put("code", 400);
+                response.put("message", "卡密格式错误或解密失败(Encrypted Card Key Required)");
+                response.put("success", false);
+                return ResponseEntity.badRequest().body(response);
+            }
         }
 
         // 3. Use Card

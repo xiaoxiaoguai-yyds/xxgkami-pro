@@ -71,7 +71,16 @@ const currentVersion = 'v1.0.0'          <el-descriptions-item label="联系邮�
           </div>
         </template>
         <el-timeline>
-          <el-timeline-item timestamp="2026-01-30" placement="top" type="primary" size="large">
+          <el-timeline-item timestamp="2026-02-09" placement="top" type="primary" size="large">
+            <el-card>
+              <h4>v1.0.2 版本更新</h4>
+              <p>1. 修复用户注册时因邮件配置缺失导致的 500 错误，优化异常处理逻辑</p>
+              <p>2. 升级 xxgkami 命令行工具，新增数据库智能增量更新功能</p>
+              <p>3. 优化系统安装脚本，提升部署体验</p>
+              <p>4. 修复部分已知的小问题</p>
+            </el-card>
+          </el-timeline-item>
+          <el-timeline-item timestamp="2026-01-30" placement="top" size="large">
             <el-card>
               <h4>v1.0.1 版本更新</h4>
               <p>1. 完善管理员账号密码加密逻辑，数据库存储由明文全面升级为 BCrypt 加密</p>
@@ -131,7 +140,7 @@ const currentVersion = 'v1.0.0'          <el-descriptions-item label="联系邮�
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-const currentVersion = 'v1.0.1'
+const currentVersion = 'v1.0.2'
 const checking = ref(false)
 const showUpdateDialog = ref(false)
 const updateInfo = ref(null)

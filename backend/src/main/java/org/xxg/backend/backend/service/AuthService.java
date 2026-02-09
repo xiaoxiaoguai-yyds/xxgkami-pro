@@ -429,7 +429,11 @@ public class AuthService {
         verificationCodeMapper.deleteByEmailAndType(request.getEmail(), "register");
         
         // Send registration success email
-        emailService.sendRegistrationSuccess(request.getEmail());
+        try {
+            emailService.sendRegistrationSuccess(request.getEmail());
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to send registration success email: " + e.getMessage());
+        }
     }
 
     /**

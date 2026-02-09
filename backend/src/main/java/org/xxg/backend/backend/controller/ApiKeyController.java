@@ -34,10 +34,11 @@ public class ApiKeyController {
     }
 
     @PostMapping("/apikeys")
-    public ResponseEntity<ApiKey> createApiKey(@RequestBody Map<String, String> body) {
-        String name = body.get("name");
-        String description = body.get("description");
-        return ResponseEntity.ok(apiKeyService.createApiKey(name, description));
+    public ResponseEntity<ApiKey> createApiKey(@RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        String description = (String) body.get("description");
+        Boolean enableCardEncryption = body.containsKey("enable_card_encryption") ? (Boolean) body.get("enable_card_encryption") : false;
+        return ResponseEntity.ok(apiKeyService.createApiKey(name, description, enableCardEncryption));
     }
 
     @PutMapping("/apikeys/{id}")
@@ -46,7 +47,9 @@ public class ApiKeyController {
         String description = (String) body.get("description");
         Integer status = body.containsKey("status") ? (Integer) body.get("status") : 1;
         String webhookConfig = (String) body.get("webhook_config");
-        apiKeyService.updateApiKey(id, name, description, status, webhookConfig);
+        Boolean enableCardEncryption = body.containsKey("enable_card_encryption") ? (Boolean) body.get("enable_card_encryption") : false;
+        
+        apiKeyService.updateApiKey(id, name, description, status, webhookConfig, enableCardEncryption);
         return ResponseEntity.ok().build();
     }
 

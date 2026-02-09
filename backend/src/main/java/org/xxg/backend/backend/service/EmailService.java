@@ -213,12 +213,12 @@ public class EmailService {
      * 发送注册成功通知
      */
     public void sendRegistrationSuccess(String to) {
-        String notifyEnabled = settingsService.getSetting("notify_user_reg");
-        if (!"true".equals(notifyEnabled)) {
-            return;
-        }
-
         try {
+            String notifyEnabled = settingsService.getSetting("notify_user_reg");
+            if (!"true".equals(notifyEnabled)) {
+                return;
+            }
+
             JavaMailSender mailSender = createMailSender(null);
             String senderName = getSettingValue("sender_name", null);
             String fromEmail = getSettingValue("smtp_email", null);

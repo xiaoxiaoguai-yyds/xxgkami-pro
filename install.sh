@@ -137,6 +137,64 @@ while true; do
             cd \$INSTALL_DIR
             git pull
             
+            # Database Update Logic
+            echo -e "\${YELLOW}正在检查数据库更新...\${NC}"
+            APP_PROP="\$INSTALL_DIR/backend/src/main/resources/application.properties"
+            if [ -f "\$APP_PROP" ]; then
+                # Extract DB Creds
+                DB_USER=\$(grep "spring.datasource.username" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_PWD=\$(grep "spring.datasource.password" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_NAME="kami"
+                
+                SQL_FILE="\$INSTALL_DIR/database/kami.sql"
+                # Typo fix check
+                if [ ! -f "\$SQL_FILE" ] && [ -f "\$INSTALL_DIR/databaes/kami.sql" ]; then
+                    SQL_FILE="\$INSTALL_DIR/databaes/kami.sql"
+                fi
+                
+                if [ -f "\$SQL_FILE" ]; then
+                    echo -e "\${YELLOW}正在执行数据库智能更新...\${NC}"
+                    TEMP_DB="kami_update_temp_\$(date +%s)"
+                    
+                    # 1. Create Temp DB
+                    echo -e "\${BLUE}创建临时数据库 \$TEMP_DB...\${NC}"
+                    mysql -u\$DB_USER -p"\$DB_PWD" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null
+                    
+                    if [ \$? -eq 0 ]; then
+                        # 2. Import new SQL
+                        echo -e "\${BLUE}导入新版数据到临时库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB < "\$SQL_FILE"
+                        
+                        # 3. Sync Tables
+                        echo -e "\${BLUE}检查新增表...\${NC}"
+                        TEMP_TABLES=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
+                        
+                        for TABLE in \$TEMP_TABLES; do
+                            TABLE_EXISTS=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
+                            
+                            if [ "\$TABLE_EXISTS" -eq 0 ]; then
+                                echo -e "\${GREEN}检测到新增表: \$TABLE，正在创建...\${NC}"
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            else
+                                # 4. Sync Data (Insert Ignore)
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" --no-create-info --insert-ignore --complete-insert \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            fi
+                        done
+                        
+                        # 5. Cleanup
+                        echo -e "\${BLUE}清理临时数据库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" -e "DROP DATABASE \$TEMP_DB;"
+                        echo -e "\${GREEN}数据库增量更新完成!\${NC}"
+                    else
+                         echo -e "\${RED}创建临时数据库失败，可能是密码错误或权限不足，跳过数据库更新\${NC}"
+                    fi
+                else
+                    echo -e "\${RED}错误：找不到数据库文件 \$SQL_FILE\${NC}"
+                fi
+            else
+                echo -e "\${YELLOW}未找到配置文件，跳过数据库更新\${NC}"
+            fi
+            
             echo -e "\${YELLOW}重新编译后端...\${NC}"
             cd backend
             if [ "\$IS_CHINA" = true ]; then
@@ -471,6 +529,14 @@ if [ -f /etc/debian_version ]; then
     # MySQL 8.0
     install_mysql8_debian
     
+    # Redis (新增)
+    if ! command -v redis-server >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在安装 Redis...${NC}"
+        apt-get install -y redis-server
+        systemctl enable redis-server
+        systemctl start redis-server
+    fi
+    
     # Node.js 18.x
     if ! check_node; then
         curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
@@ -492,6 +558,14 @@ elif [ -f /etc/redhat-release ]; then
     
     # MySQL 8.0
     install_mysql8_rhel
+    
+    # Redis (新增)
+    if ! command -v redis-server >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在安装 Redis...${NC}"
+        yum install -y redis
+        systemctl enable redis
+        systemctl start redis
+    fi
     
     # Node.js 18.x
     if ! check_node; then
@@ -1099,6 +1173,64 @@ while true; do
             echo -e "\${YELLOW}正在拉取最新代码...\${NC}"
             cd \$INSTALL_DIR
             git pull
+            
+            # Database Update Logic
+            echo -e "\${YELLOW}正在检查数据库更新...\${NC}"
+            APP_PROP="\$INSTALL_DIR/backend/src/main/resources/application.properties"
+            if [ -f "\$APP_PROP" ]; then
+                # Extract DB Creds
+                DB_USER=\$(grep "spring.datasource.username" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_PWD=\$(grep "spring.datasource.password" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_NAME="kami"
+                
+                SQL_FILE="\$INSTALL_DIR/database/kami.sql"
+                # Typo fix check
+                if [ ! -f "\$SQL_FILE" ] && [ -f "\$INSTALL_DIR/databaes/kami.sql" ]; then
+                    SQL_FILE="\$INSTALL_DIR/databaes/kami.sql"
+                fi
+                
+                if [ -f "\$SQL_FILE" ]; then
+                    echo -e "\${YELLOW}正在执行数据库智能更新...\${NC}"
+                    TEMP_DB="kami_update_temp_\$(date +%s)"
+                    
+                    # 1. Create Temp DB
+                    echo -e "\${BLUE}创建临时数据库 \$TEMP_DB...\${NC}"
+                    mysql -u\$DB_USER -p"\$DB_PWD" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null
+                    
+                    if [ \$? -eq 0 ]; then
+                        # 2. Import new SQL
+                        echo -e "\${BLUE}导入新版数据到临时库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB < "\$SQL_FILE"
+                        
+                        # 3. Sync Tables
+                        echo -e "\${BLUE}检查新增表...\${NC}"
+                        TEMP_TABLES=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
+                        
+                        for TABLE in \$TEMP_TABLES; do
+                            TABLE_EXISTS=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
+                            
+                            if [ "\$TABLE_EXISTS" -eq 0 ]; then
+                                echo -e "\${GREEN}检测到新增表: \$TABLE，正在创建...\${NC}"
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            else
+                                # 4. Sync Data (Insert Ignore)
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" --no-create-info --insert-ignore --complete-insert \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            fi
+                        done
+                        
+                        # 5. Cleanup
+                        echo -e "\${BLUE}清理临时数据库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" -e "DROP DATABASE \$TEMP_DB;"
+                        echo -e "\${GREEN}数据库增量更新完成!\${NC}"
+                    else
+                         echo -e "\${RED}创建临时数据库失败，可能是密码错误或权限不足，跳过数据库更新\${NC}"
+                    fi
+                else
+                    echo -e "\${RED}错误：找不到数据库文件 \$SQL_FILE\${NC}"
+                fi
+            else
+                echo -e "\${YELLOW}未找到配置文件，跳过数据库更新\${NC}"
+            fi
             
             echo -e "\${YELLOW}重新编译后端...\${NC}"
             cd backend

@@ -44,6 +44,14 @@ public class ApiKeyMapper {
                     "UNIQUE INDEX `api_key`(`api_key` ASC), " +
                     "UNIQUE INDEX `idx_api_key_value`(`key_value` ASC)" +
                     ")");
+            // Migration: Ensure enable_card_encryption exists
+            try {
+                jdbcTemplate.execute("SELECT enable_card_encryption FROM api_keys LIMIT 1");
+            } catch (Exception e) {
+                 logger.info("Column enable_card_encryption missing, attempting to add it...");
+                 jdbcTemplate.execute("ALTER TABLE api_keys ADD COLUMN enable_card_encryption TINYINT(1) DEFAULT 0 COMMENT '是否启用卡密加密验证'");
+            }
+
         } catch (Exception e) {
             logger.error("Failed to create api_keys table", e);
         }
@@ -164,7 +172,7 @@ public class ApiKeyMapper {
     }
 
     public void insert(ApiKey apiKey) {
-        String sql = "INSERT INTO api_keys (key_name, api_key, key_value, name, description, status, create_time, webhook_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO api_keys (key_name, api_key, key_value, name, description, status, create_time, webhook_config, enable_card_encryption) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         jdbcTemplate.update(sql, 
             apiKey.getKeyName(), 
             apiKey.getApiKey(), 
@@ -173,13 +181,14 @@ public class ApiKeyMapper {
             apiKey.getDescription(), 
             apiKey.getStatus(), 
             LocalDateTime.now(),
-            apiKey.getWebhookConfig()
+            apiKey.getWebhookConfig(),
+            apiKey.getEnableCardEncryption()
         );
     }
 
     public void update(ApiKey apiKey) {
-        String sql = "UPDATE api_keys SET key_name = ?, description = ?, status = ?, webhook_config = ? WHERE id = ?";
-        jdbcTemplate.update(sql, apiKey.getKeyName(), apiKey.getDescription(), apiKey.getStatus(), apiKey.getWebhookConfig(), apiKey.getId());
+        String sql = "UPDATE api_keys SET key_name = ?, description = ?, status = ?, webhook_config = ?, enable_card_encryption = ? WHERE id = ?";
+        jdbcTemplate.update(sql, apiKey.getKeyName(), apiKey.getDescription(), apiKey.getStatus(), apiKey.getWebhookConfig(), apiKey.getEnableCardEncryption(), apiKey.getId());
     }
 
     public void delete(Long id) {
@@ -232,6 +241,7 @@ public class ApiKeyMapper {
             apiKey.setDescription(rs.getString("description"));
             apiKey.setStatus(rs.getInt("status"));
             apiKey.setWebhookConfig(rs.getString("webhook_config"));
+            apiKey.setEnableCardEncryption(rs.getBoolean("enable_card_encryption"));
             
             if (rs.getTimestamp("create_time") != null) {
                 apiKey.setCreateTime(rs.getTimestamp("create_time").toLocalDateTime());

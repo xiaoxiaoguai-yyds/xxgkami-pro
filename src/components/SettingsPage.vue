@@ -529,6 +529,10 @@ const saveSettings = async () => {
     if (res.success) {
       emit('save-settings', payload)
       showToast('设置已保存', 'success')
+      // 延迟1秒后刷新页面
+      setTimeout(() => {
+        window.location.reload()
+      }, 1000)
     } else {
       showToast(res.message || '保存失败', 'error')
     }
