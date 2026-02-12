@@ -18,12 +18,28 @@ fi
 
 show_menu() {
     clear
+    # 获取系统信息
+    SYS_OS=$(cat /etc/os-release | grep "PRETTY_NAME" | cut -d= -f2 | tr -d '"')
+    SYS_KERNEL=$(uname -r)
+    SYS_ARCH=$(uname -m)
+    SYS_MEM_TOTAL=$(free -h | grep Mem | awk '{print $2}')
+    SYS_MEM_USED=$(free -h | grep Mem | awk '{print $3}')
+    SYS_CPU_MODEL=$(cat /proc/cpuinfo | grep "model name" | head -n 1 | cut -d: -f2 | xargs)
+    SYS_CPU_CORES=$(nproc)
+    
     echo -e "${BLUE}================================================${NC}"
-    echo -e "${BLUE}        XXG-KAMI-PRO 一键部署脚本 v1.0          ${NC}"
+    echo -e "${BLUE}        XXG-KAMI-PRO 一键部署脚本 v1.1          ${NC}"
     echo -e "${BLUE}================================================${NC}"
     echo -e "欢迎使用小小怪卡密管理系统安装脚本！"
     echo -e "开源地址: https://github.com/xiaoxiaoguai-yyds/xxgkami-pro"
     echo -e "管理系统售后群: 1050160397"
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "系统信息:"
+    echo -e "  系统版本: $SYS_OS"
+    echo -e "  内核版本: $SYS_KERNEL"
+    echo -e "  系统架构: $SYS_ARCH"
+    echo -e "  CPU型号 : $SYS_CPU_MODEL ($SYS_CPU_CORES 核)"
+    echo -e "  内存占用: $SYS_MEM_USED / $SYS_MEM_TOTAL"
     echo -e "${BLUE}================================================${NC}"
     echo -e "1. 安装系统 (全新安装)"
     echo -e "2. 更新系统 (保留数据更新)"
@@ -463,49 +479,55 @@ check_node() {
 }
 
 install_mysql8_debian() {
-    # 检查是否正在运行
-    if systemctl is-active --quiet mysql; then
-        echo -e "${GREEN}MySQL 正在运行，跳过安装配置${NC}"
+    # 检查是否已安装
+    if command -v mysql >/dev/null 2>&1; then
+        echo -e "${GREEN}MySQL 已安装，跳过自动安装${NC}"
         return
     fi
-
-    # 检查是否已安装 MySQL (通过 mysql -V)
-    if mysql -V >/dev/null 2>&1; then
-        if [[ "$(mysql -V)" == *"8."* ]]; then
-            echo -e "${GREEN}MySQL 已安装 (版本: $(mysql -V))${NC}"
-            return
-        fi
-    fi
     
-    echo -e "${YELLOW}配置 MySQL 8.0 源...${NC}"
+    echo -e "${YELLOW}正在自动安装 MySQL 8.0...${NC}"
     wget https://dev.mysql.com/get/mysql-apt-config_0.8.28-1_all.deb
     DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.28-1_all.deb
     apt-get update
-    apt-get install -y mysql-server
+    DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
+    
+    systemctl start mysql
+    systemctl enable mysql
+    
+    # 生成随机密码 (只包含字母数字，避免 sed 问题)
+    AUTO_MYSQL_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
+    
+    echo -e "${YELLOW}正在配置 MySQL root 密码...${NC}"
+    # Debian/Ubuntu 默认使用 auth_socket，可以直接无密码登录修改
+    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$AUTO_MYSQL_PASSWORD'; FLUSH PRIVILEGES;"
+    
+    AUTO_INSTALLED_MYSQL="true"
+    echo -e "${GREEN}MySQL 安装并配置完成!${NC}"
 }
 
 install_mysql8_rhel() {
-    # 检查是否正在运行
-    if systemctl is-active --quiet mysqld; then
-        echo -e "${GREEN}MySQL 正在运行，跳过安装配置${NC}"
-        return
-    fi
-
-    if mysql -V >/dev/null 2>&1; then
-        echo -e "${GREEN}MySQL 已安装 (版本: $(mysql -V))${NC}"
+    # 检查是否已安装
+    if command -v mysql >/dev/null 2>&1; then
+        echo -e "${GREEN}MySQL 已安装，跳过自动安装${NC}"
         return
     fi
     
-    echo -e "${YELLOW}配置 MySQL 8.0 源...${NC}"
+    echo -e "${YELLOW}正在自动安装 MySQL 8.0...${NC}"
     rpm -Uvh https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm
     yum --enablerepo=mysql80-community install -y mysql-community-server
     systemctl start mysqld
     systemctl enable mysqld
     
-    # 获取临时密码
     TEMP_PASS=$(grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}')
-    echo -e "${YELLOW}MySQL 初始临时密码: $TEMP_PASS${NC}"
-    echo -e "${YELLOW}请务必在脚本运行后尽快修改密码!${NC}"
+    
+    # 必须满足复杂性要求: 大写+小写+数字+特殊字符
+    AUTO_MYSQL_PASSWORD="Xxg.$(date +%s).${RANDOM}"
+    
+    echo -e "${YELLOW}正在配置 MySQL root 密码...${NC}"
+    mysql -u root -p"$TEMP_PASS" --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$AUTO_MYSQL_PASSWORD';"
+    
+    AUTO_INSTALLED_MYSQL="true"
+    echo -e "${GREEN}MySQL 安装并配置完成!${NC}"
 }
 
 # 执行 MySQL 版本检查
@@ -652,25 +674,31 @@ echo -e "${YELLOW}[4/8] 配置数据库...${NC}"
 DB_NAME="kami"
 DB_USER="root"
 
-while true; do
-    # 获取数据库密码
-    read -p "请输入 MySQL root 密码: " DB_PASSWORD
-    
-    # 验证数据库连接
-    echo -e "${YELLOW}正在验证数据库连接...${NC}"
-    if mysql -u$DB_USER -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
-        echo -e "${GREEN}数据库连接成功!${NC}"
-        break
-    else
-        echo -e "${RED}数据库连接失败! 密码错误或服务未启动。${NC}"
-        echo -e "${YELLOW}请重新输入密码，或检查 MySQL 服务状态。${NC}"
-        read -p "是否重试? (y/n): " RETRY_CHOICE
-        if [ "$RETRY_CHOICE" != "y" ] && [ "$RETRY_CHOICE" != "Y" ]; then
-            echo -e "${RED}放弃配置数据库，脚本退出。${NC}"
-            exit 1
+if [ "$AUTO_INSTALLED_MYSQL" == "true" ]; then
+    echo -e "${GREEN}检测到 MySQL 已自动安装，使用自动生成的凭据...${NC}"
+    DB_PASSWORD="$AUTO_MYSQL_PASSWORD"
+    # echo -e "${YELLOW}数据库密码: $DB_PASSWORD${NC}"
+else
+    while true; do
+        # 获取数据库密码
+        read -p "请输入 MySQL root 密码: " DB_PASSWORD
+        
+        # 验证数据库连接
+        echo -e "${YELLOW}正在验证数据库连接...${NC}"
+        if mysql -u$DB_USER -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+            echo -e "${GREEN}数据库连接成功!${NC}"
+            break
+        else
+            echo -e "${RED}数据库连接失败! 密码错误或服务未启动。${NC}"
+            echo -e "${YELLOW}请重新输入密码，或检查 MySQL 服务状态。${NC}"
+            read -p "是否重试? (y/n): " RETRY_CHOICE
+            if [ "$RETRY_CHOICE" != "y" ] && [ "$RETRY_CHOICE" != "Y" ]; then
+                echo -e "${RED}放弃配置数据库，脚本退出。${NC}"
+                exit 1
+            fi
         fi
-    fi
-done
+    done
+fi
 
 # 创建数据库并导入数据
 SQL_FILE="$INSTALL_DIR/databaes/kami.sql"
@@ -1364,7 +1392,10 @@ echo -e "用户端地址: ${SITE_URL}"
 echo -e "管理端地址: ${SITE_URL}/#/admin"
 echo -e "------------------------------------------------"
 echo -e "默认管理员账号: admin"
-echo -e "默认管理员密码: 123465"
+echo -e "默认管理员密码: 123456"
+echo -e "------------------------------------------------"
+echo -e "数据库账号: ${DB_USER}"
+echo -e "数据库密码: ${DB_PASSWORD}"
 echo -e "------------------------------------------------"
 echo -e "后端服务状态: systemctl status xxgkami"
 echo -e "Nginx状态: systemctl status nginx"
