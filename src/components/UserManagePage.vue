@@ -21,63 +21,78 @@
       </div>
     </div>
     
-    <div class="keys-table">
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>用户名</th>
-            <th>昵称</th>
-            <th>邮箱</th>
-            <th>手机号</th>
-            <th>状态</th>
-            <th>创建时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.id">
-            <td>{{ user.id }}</td>
-            <td>{{ user.username }}</td>
-            <td>{{ user.nickname || '-' }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ user.phone || '-' }}</td>
-            <td>
-              <span :class="['status', user.status === 1 ? 'status-active' : 'status-inactive']">
-                {{ user.status === 1 ? '正常' : '禁用' }}
-              </span>
-            </td>
-            <td>{{ formatDate(user.createTime) }}</td>
-            <td>
-              <div class="action-buttons">
-                <button class="btn-primary btn-sm" @click="openEditModal(user)">
-                  编辑
-                </button>
-                <button 
-                  v-if="user.status === 0" 
-                  class="btn-success btn-sm" 
-                  @click="toggleUserStatus(user.id, 1)"
-                >
-                  启用
-                </button>
-                <button 
-                  v-if="user.status === 1" 
-                  class="btn-warning btn-sm" 
-                  @click="toggleUserStatus(user.id, 0)"
-                >
-                  禁用
-                </button>
-                <button class="btn-danger btn-sm" @click="handleDeleteUser(user.id)">
-                  删除
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="users.length === 0">
-            <td colspan="8" class="empty-text">暂无用户数据</td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="user-list">
+      <div class="user-card" v-for="user in users" :key="user.id">
+        <div class="user-info">
+          <div class="user-header">
+            <h3>{{ user.username }}</h3>
+            <span :class="['user-status', user.status === 1 ? 'active' : 'inactive']">
+              {{ user.status === 1 ? '正常' : '禁用' }}
+            </span>
+          </div>
+          
+          <div class="user-meta">
+            <div class="meta-item">
+              <span class="label">ID:</span>
+              <span class="value">{{ user.id }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="label">昵称:</span>
+              <span class="value">{{ user.nickname || '-' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="label">邮箱:</span>
+              <span class="value">{{ user.email }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="label">手机号:</span>
+              <span class="value">{{ user.phone || '-' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="label">创建时间:</span>
+              <span class="value">{{ formatDate(user.createTime) }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="user-actions">
+          <button class="btn-secondary" @click="openEditModal(user)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            编辑
+          </button>
+          
+          <button 
+            v-if="user.status === 0" 
+            class="btn-success" 
+            @click="toggleUserStatus(user.id, 1)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            启用
+          </button>
+          
+          <button 
+            v-if="user.status === 1" 
+            class="btn-warning" 
+            @click="toggleUserStatus(user.id, 0)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+            禁用
+          </button>
+          
+          <button class="btn-danger" @click="handleDeleteUser(user.id)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            删除
+          </button>
+        </div>
+      </div>
+      
+      <div v-if="users.length === 0 && !loading" class="empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="48" height="48"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        </div>
+        <h3>暂无用户数据</h3>
+        <p>点击上方按钮创建新用户</p>
+      </div>
     </div>
 
     <!-- 分页组件 -->
@@ -143,10 +158,15 @@
           </div>
           <div class="form-group" v-if="isEditing">
              <label>状态</label>
-             <select v-model="form.status">
-               <option :value="1">正常</option>
-               <option :value="0">禁用</option>
-             </select>
+             <div class="custom-select-wrapper">
+               <select v-model="form.status" class="custom-select">
+                 <option :value="1">正常</option>
+                 <option :value="0">禁用</option>
+               </select>
+               <div class="select-arrow">
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+               </div>
+             </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -302,127 +322,179 @@ const handleDeleteUser = async (id) => {
 
 <style scoped>
 .user-manage-page {
-  padding: 20px;
+  padding: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.section-header h2 {
+  color: #333;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: bold;
 }
 
 .header-actions {
   display: flex;
   gap: 15px;
+  flex-wrap: wrap;
 }
 
 .search-box {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .search-box input {
   padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  width: 200px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  width: 240px;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 0.9rem;
 }
 
-.keys-table {
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.user-card {
   background: white;
+  padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
-  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border: 1px solid #e1e5e9;
+  transition: all 0.3s ease;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
+.user-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
 }
 
-th, td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid #ebeef5;
+.user-info {
+  flex: 1;
+  margin-right: 1rem;
 }
 
-th {
-  background-color: #f5f7fa;
-  color: #909399;
+.user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.user-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.1rem;
   font-weight: 600;
 }
 
-.status {
-  padding: 4px 8px;
+.user-status {
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
 }
 
-.status-active {
-  background-color: #f0f9eb;
-  color: #67c23a;
+.user-status.active {
+  background: #dcfce7;
+  color: #166534;
 }
 
-.status-inactive {
-  background-color: #fef0f0;
-  color: #f56c6c;
+.user-status.inactive {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
-.action-buttons {
+.user-meta {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.meta-item .label {
+  color: #9ca3af;
+  min-width: 60px;
+}
+
+.meta-item .value {
+  color: #4b5563;
+  font-family: 'Courier New', monospace;
+}
+
+.user-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 100px;
 }
 
 .btn-primary, .btn-secondary, .btn-success, .btn-warning, .btn-danger {
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  padding: 8px 16px;
+  padding: 0.5rem 1rem;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  transition: all 0.3s;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  text-decoration: none;
 }
 
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 12px;
-}
+.btn-primary { background: #4f46e5; color: white; }
+.btn-primary:hover { background: #4338ca; transform: translateY(-1px); }
 
-.btn-primary {
-  background-color: #409eff;
-  color: white;
-}
+.btn-secondary { background: #6b7280; color: white; }
+.btn-secondary:hover { background: #4b5563; transform: translateY(-1px); }
 
-.btn-secondary {
-  background-color: #f4f4f5;
-  color: #909399;
-}
+.btn-success { background: #10b981; color: white; }
+.btn-success:hover { background: #059669; transform: translateY(-1px); }
 
-.btn-success {
-  background-color: #67c23a;
-  color: white;
-}
+.btn-warning { background: #f59e0b; color: white; }
+.btn-warning:hover { background: #d97706; transform: translateY(-1px); }
 
-.btn-warning {
-  background-color: #e6a23c;
-  color: white;
-}
-
-.btn-danger {
-  background-color: #f56c6c;
-  color: white;
-}
+.btn-danger { background: #ef4444; color: white; }
+.btn-danger:hover { background: #dc2626; transform: translateY(-1px); }
 
 .btn-primary:disabled {
-  background-color: #a0cfff;
+  background: #a5a6f6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .pagination-container {
-  margin-top: 20px;
+  margin-top: 2rem;
   display: flex;
   justify-content: flex-end;
 }
@@ -430,26 +502,34 @@ th {
 .pagination {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .pagination-btn, .page-btn {
-  padding: 6px 12px;
-  border: 1px solid #dcdfe6;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
   background: white;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: all 0.2s;
+  color: #4b5563;
+}
+
+.pagination-btn:hover:not(:disabled), .page-btn:hover:not(.active) {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
 }
 
 .pagination-btn:disabled {
-  background-color: #f5f7fa;
-  color: #c0c4cc;
+  background-color: #f9fafb;
+  color: #d1d5db;
   cursor: not-allowed;
 }
 
 .page-btn.active {
-  background-color: #409eff;
+  background-color: #4f46e5;
   color: white;
-  border-color: #409eff;
+  border-color: #4f46e5;
 }
 
 /* Modal Styles */
@@ -464,6 +544,7 @@ th {
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  backdrop-filter: blur(5px);
 }
 
 .modal-content {
@@ -471,11 +552,17 @@ th {
   border-radius: 8px;
   width: 500px;
   max-width: 90%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .modal-header {
-  padding: 20px;
-  border-bottom: 1px solid #ebeef5;
+  padding: 1.5rem 1.5rem 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -483,47 +570,166 @@ th {
 
 .modal-header h3 {
   margin: 0;
+  font-size: 1.25rem;
+  color: #111827;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 1.5rem;
   cursor: pointer;
-  color: #909399;
+  color: #6b7280;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.close-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 1.5rem;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 1.25rem;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
-  color: #606266;
+  margin-bottom: 0.5rem;
+  color: #374151;
+  font-weight: 500;
+  font-size: 0.9rem;
 }
 
-.form-group input, .form-group select {
+.form-group input {
   width: 100%;
-  padding: 8px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
   box-sizing: border-box;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .required {
-  color: #f56c6c;
+  color: #ef4444;
+  margin-left: 4px;
 }
 
 .modal-footer {
-  padding: 20px;
-  border-top: 1px solid #ebeef5;
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 1rem;
+}
+
+/* Custom Select */
+.custom-select-wrapper {
+  position: relative;
+}
+
+.custom-select {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  appearance: none;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #6b7280;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 2px dashed #e5e7eb;
+}
+
+.empty-icon {
+  color: #9ca3af;
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  font-size: 1.1rem;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+  }
+  
+  .search-box {
+    width: 100%;
+  }
+  
+  .search-box input {
+    width: 100%;
+    flex: 1;
+  }
+  
+  .user-card {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .user-info {
+    margin-right: 0;
+    width: 100%;
+  }
+  
+  .user-actions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  
+  .user-actions button {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .pagination {
+    justify-content: center;
+  }
 }
 </style>

@@ -502,6 +502,7 @@
                       <option value="card_key">卡密</option>
                       <option value="expire_time">过期时间</option>
                       <option value="card_type">卡密类型</option>
+                      <option value="card_status">卡密状态 (yes/no)</option>
                     </select>
                   </div>
                   <div class="row-actions">
@@ -1360,6 +1361,7 @@ const previewResponseJson = computed(() => {
         else if (p.value === 'card_key') val = 'ABC123XYZ'
         else if (p.value === 'expire_time') val = '2026-01-01 12:00:00'
         else if (p.value === 'card_type') val = '时间卡'
+        else if (p.value === 'card_status') val = 'no' // 默认未使用
         else if (p.value === 'success') val = true
         else if (p.value === 'message') val = '验证成功'
         else if (p.value === 'status_code') {

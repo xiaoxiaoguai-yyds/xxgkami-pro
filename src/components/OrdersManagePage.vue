@@ -52,19 +52,21 @@
       <div class="filter-row">
         <div class="filter-group">
           <label>购买时间：</label>
-          <input
-            v-model="dateRange.start"
-            type="date"
-            class="filter-input date-input"
-            placeholder="开始日期"
-          />
-          <span class="date-separator">至</span>
-          <input
-            v-model="dateRange.end"
-            type="date"
-            class="filter-input date-input"
-            placeholder="结束日期"
-          />
+          <div class="date-range-wrapper">
+            <input
+              v-model="dateRange.start"
+              type="date"
+              class="filter-input date-input"
+              placeholder="开始日期"
+            />
+            <span class="date-separator">至</span>
+            <input
+              v-model="dateRange.end"
+              type="date"
+              class="filter-input date-input"
+              placeholder="结束日期"
+            />
+          </div>
         </div>
         
         <div class="filter-actions">
@@ -1384,15 +1386,56 @@ onMounted(() => {
   padding: 0 1.5rem 1.5rem;
 }
 
+.date-range-wrapper {
+  display: flex;
+  align-items: center;
+}
+
 @media (max-width: 768px) {
+  .search-filters-card {
+    padding: 1rem;
+  }
+
   .filter-row {
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
   }
   
+  .filter-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .filter-group label {
+    margin-bottom: 0.25rem;
+  }
+  
+  .filter-input, 
+  .filter-select {
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .date-range-wrapper {
+    width: 100%;
+    gap: 0.5rem;
+  }
+  
+  .date-range-wrapper .filter-input {
+    flex: 1;
+    width: auto;
+  }
+  
   .filter-actions {
     margin-left: 0;
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .filter-actions button {
+    flex: 1;
     justify-content: center;
   }
   

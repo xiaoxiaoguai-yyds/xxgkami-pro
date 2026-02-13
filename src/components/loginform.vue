@@ -361,6 +361,81 @@ const showForgotPassword = ref(false)
 const showTotpInput = ref(false)
 const totpInputRef = ref(null)
 
+// TOTP Recovery
+const showRecoveryModal = ref(false)
+const recoveryLoading = ref(false)
+const recoveryError = ref('')
+const recoverySuccess = ref('')
+const recoveryTimer = ref(0)
+let recoveryTimerInterval = null
+
+const recoveryForm = reactive({
+  code: ''
+})
+
+const sendRecoveryCode = async () => {
+  if (!loginForm.username) {
+    recoveryError.value = '请先输入用户名'
+    return
+  }
+
+  try {
+    const response = await authApi.sendRecoveryCode(loginForm.username)
+    if (response.success) {
+      recoverySuccess.value = '验证码已发送，请查收邮件'
+      recoveryError.value = ''
+      startRecoveryTimer()
+    } else {
+      recoveryError.value = response.message || '发送失败'
+    }
+  } catch (error) {
+    recoveryError.value = '发送失败: ' + (error.message || '未知错误')
+  }
+}
+
+const startRecoveryTimer = (initialValue = 60) => {
+  recoveryTimer.value = initialValue
+  if (recoveryTimerInterval) clearInterval(recoveryTimerInterval)
+  recoveryTimerInterval = setInterval(() => {
+    recoveryTimer.value--
+    if (recoveryTimer.value <= 0) {
+      clearInterval(recoveryTimerInterval)
+    }
+  }, 1000)
+}
+
+const handleRecovery = async () => {
+  if (!recoveryForm.code) {
+    recoveryError.value = '请输入验证码'
+    return
+  }
+
+  recoveryLoading.value = true
+  recoveryError.value = ''
+  recoverySuccess.value = ''
+
+  try {
+    const response = await authApi.disableTotpByRecovery(loginForm.username, recoveryForm.code)
+    
+    if (response.success) {
+      recoverySuccess.value = '双重验证已关闭，请重新登录'
+      setTimeout(() => {
+        showRecoveryModal.value = false
+        recoveryForm.code = ''
+        // Auto login or just close modal?
+        // Let's try to login again automatically without TOTP
+        handleLogin()
+      }, 1500)
+    } else {
+      recoveryError.value = response.message || '验证失败'
+    }
+  } catch (error) {
+    recoveryError.value = '请求失败: ' + (error.message || '未知错误')
+  } finally {
+    recoveryLoading.value = false
+  }
+}
+
 // OAuth Register Mode
 const isOAuthRegister = ref(false)
 const oauthNickname = ref('')
@@ -553,7 +628,7 @@ const autoDismiss = (messageRef) => {
   })
 }
 
-[errorMessage, successMessage, registerError, registerSuccess, forgotPasswordError, forgotPasswordSuccess].forEach(autoDismiss)
+[errorMessage, successMessage, registerError, registerSuccess, forgotPasswordError, forgotPasswordSuccess, recoveryError, recoverySuccess].forEach(autoDismiss)
 
 const forgotCodeTimer = ref(0)
 let forgotTimerInterval = null

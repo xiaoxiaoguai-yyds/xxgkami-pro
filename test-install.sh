@@ -18,12 +18,123 @@ fi
 
 show_menu() {
     clear
+    # 获取系统信息
+    SYS_OS=$(cat /etc/os-release | grep "PRETTY_NAME" | cut -d= -f2 | tr -d '"')
+    SYS_KERNEL=$(uname -r)
+    SYS_ARCH=$(uname -m)
+    SYS_MEM_TOTAL=$(free -h | grep Mem | awk '{print $2}')
+    SYS_MEM_USED=$(free -h | grep Mem | awk '{print $3}')
+    SYS_CPU_MODEL=$(cat /proc/cpuinfo | grep "model name" | head -n 1 | cut -d: -f2 | xargs)
+    SYS_CPU_CORES=$(nproc)
+    
     echo -e "${BLUE}================================================${NC}"
-    echo -e "${BLUE}        XXG-KAMI-PRO 一键部署脚本 v1.0          ${NC}"
+    echo -e "${BLUE}        XXG-KAMI-PRO 一键部署脚本 v1.1          ${NC}"
     echo -e "${BLUE}================================================${NC}"
     echo -e "欢迎使用小小怪卡密管理系统安装脚本！"
     echo -e "开源地址: https://github.com/xiaoxiaoguai-yyds/xxgkami-pro"
     echo -e "管理系统售后群: 1050160397"
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "系统信息:"
+    echo -e "  系统版本: $SYS_OS"
+    echo -e "  内核版本: $SYS_KERNEL"
+    echo -e "  系统架构: $SYS_ARCH"
+    echo -e "  CPU型号 : $SYS_CPU_MODEL ($SYS_CPU_CORES 核)"
+    echo -e "  内存占用: $SYS_MEM_USED / $SYS_MEM_TOTAL"
+    # 辅助函数：状态检查
+    check_env_status() {
+        local req_ver="$1"
+        local cur_ver="$2"
+        local is_installed="$3"
+        
+        if [ "$is_installed" != "true" ]; then
+             echo -e "${RED}[未安装]${NC}"
+             return
+        fi
+        
+        # 简单版本比较 (使用 awk)
+        if awk "BEGIN {exit !($cur_ver >= $req_ver)}"; then
+             echo -e "${GREEN}[已安装] ${cur_ver}${NC}"
+        else
+             echo -e "${YELLOW}[版本过低] ${cur_ver}${NC}"
+        fi
+    }
+
+    # 收集环境信息
+    # 1. OS Check
+    if [ -f /etc/debian_version ] || [ -f /etc/redhat-release ]; then
+        OS_MSG="${GREEN}[支持]${NC}"
+    else
+        OS_MSG="${RED}[不支持]${NC}"
+    fi
+
+    # 2. Nginx Check (1.18+)
+    if command -v nginx >/dev/null 2>&1; then
+        NGINX_INSTALLED="true"
+        NGINX_VER=$(nginx -v 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
+    else
+        NGINX_INSTALLED="false"
+        NGINX_VER="0"
+    fi
+    NGINX_MSG=$(check_env_status "1.18" "$NGINX_VER" "$NGINX_INSTALLED")
+
+    # 3. MySQL Check (8.0+)
+    if command -v mysql >/dev/null 2>&1; then
+        MYSQL_INSTALLED="true"
+        # 优先匹配 Distrib x.x, 其次 Ver x.x
+        MYSQL_VER=$(mysql -V 2>&1 | grep -oE '(Distrib|Ver) [0-9]+\.[0-9]+' | awk '{print $2}' | head -n 1)
+        # 再次清洗，确保只保留数字.数字
+        MYSQL_VER=$(echo "$MYSQL_VER" | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
+    else
+        MYSQL_INSTALLED="false"
+        MYSQL_VER="0"
+    fi
+    MYSQL_MSG=$(check_env_status "8.0" "$MYSQL_VER" "$MYSQL_INSTALLED")
+
+    # 4. Redis Check (6.0+)
+    if command -v redis-server >/dev/null 2>&1; then
+        REDIS_INSTALLED="true"
+        REDIS_VER=$(redis-server -v | grep -oE 'v=[0-9]+\.[0-9]+' | cut -d= -f2 | head -n 1)
+    else
+        REDIS_INSTALLED="false"
+        REDIS_VER="0"
+    fi
+    REDIS_MSG=$(check_env_status "6.0" "$REDIS_VER" "$REDIS_INSTALLED")
+
+    # 5. Java Check (17+)
+    if command -v java >/dev/null 2>&1; then
+        JAVA_INSTALLED="true"
+        JAVA_VER=$(java -version 2>&1 | head -n 1 | awk -F '"' '{print $2}' | awk -F '.' '{print $1}')
+        if [ "$JAVA_VER" == "1" ]; then # Handle 1.8
+             JAVA_VER=$(java -version 2>&1 | head -n 1 | awk -F '"' '{print $2}' | awk -F '.' '{print $2}')
+        fi
+    else
+        JAVA_INSTALLED="false"
+        JAVA_VER="0"
+    fi
+    JAVA_MSG=$(check_env_status "17" "$JAVA_VER" "$JAVA_INSTALLED")
+
+    # 6. Node.js Check (22+)
+    if command -v node >/dev/null 2>&1; then
+        NODE_INSTALLED="true"
+        NODE_VER=$(node -v | sed 's/v//' | grep -oE '[0-9]+' | head -n 1)
+    else
+        NODE_INSTALLED="false"
+        NODE_VER="0"
+    fi
+    NODE_MSG=$(check_env_status "22" "$NODE_VER" "$NODE_INSTALLED")
+
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "运行环境检测 (要求 -> 当前状态):"
+    echo -e "  Linux系统: CentOS 7+ / Debian 10+ ... -> ${OS_MSG} ${SYS_OS}"
+    echo -e "  Nginx    : 1.18+                      -> ${NGINX_MSG}"
+    echo -e "  MySQL    : 8.0+                       -> ${MYSQL_MSG}"
+    echo -e "  Redis    : 6.0+                       -> ${REDIS_MSG}"
+    echo -e "  Java JDK : 17+                        -> ${JAVA_MSG}"
+    echo -e "  Node.js  : 22+                        -> ${NODE_MSG}"
+    echo -e ""
+    echo -e "  图例: ${GREEN}■ 已满足${NC}  ${YELLOW}■ 版本过低${NC}  ${RED}■ 未安装${NC}"
+    echo -e "${RED}注意：本脚本不会自动安装 MySQL！${NC}"
+    echo -e "${RED}请自行安装 MySQL 8.0+，或使用宝塔面板安装。${NC}"
     echo -e "${BLUE}================================================${NC}"
     echo -e "1. 安装系统 (全新安装)"
     echo -e "2. 更新系统 (保留数据更新)"
@@ -67,6 +178,10 @@ while true; do
             # 这里先临时定义一个变量来控制流程
             ONLY_INSTALL_CMD=true
             break
+            ;;
+        5)
+            modify_db_config
+            # 不需要 break，继续循环
             ;;
         0)
             echo -e "${GREEN}感谢使用，再见！${NC}"
@@ -136,6 +251,64 @@ while true; do
             echo -e "\${YELLOW}正在拉取最新代码...\${NC}"
             cd \$INSTALL_DIR
             git pull
+            
+            # Database Update Logic
+            echo -e "\${YELLOW}正在检查数据库更新...\${NC}"
+            APP_PROP="\$INSTALL_DIR/backend/src/main/resources/application.properties"
+            if [ -f "\$APP_PROP" ]; then
+                # Extract DB Creds
+                DB_USER=\$(grep "spring.datasource.username" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_PWD=\$(grep "spring.datasource.password" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_NAME="kami"
+                
+                SQL_FILE="\$INSTALL_DIR/database/kami.sql"
+                # Typo fix check
+                if [ ! -f "\$SQL_FILE" ] && [ -f "\$INSTALL_DIR/databaes/kami.sql" ]; then
+                    SQL_FILE="\$INSTALL_DIR/databaes/kami.sql"
+                fi
+                
+                if [ -f "\$SQL_FILE" ]; then
+                    echo -e "\${YELLOW}正在执行数据库智能更新...\${NC}"
+                    TEMP_DB="kami_update_temp_\$(date +%s)"
+                    
+                    # 1. Create Temp DB
+                    echo -e "\${BLUE}创建临时数据库 \$TEMP_DB...\${NC}"
+                    mysql -u\$DB_USER -p"\$DB_PWD" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null
+                    
+                    if [ \$? -eq 0 ]; then
+                        # 2. Import new SQL
+                        echo -e "\${BLUE}导入新版数据到临时库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB < "\$SQL_FILE"
+                        
+                        # 3. Sync Tables
+                        echo -e "\${BLUE}检查新增表...\${NC}"
+                        TEMP_TABLES=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
+                        
+                        for TABLE in \$TEMP_TABLES; do
+                            TABLE_EXISTS=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
+                            
+                            if [ "\$TABLE_EXISTS" -eq 0 ]; then
+                                echo -e "\${GREEN}检测到新增表: \$TABLE，正在创建...\${NC}"
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            else
+                                # 4. Sync Data (Insert Ignore)
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" --no-create-info --insert-ignore --complete-insert \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            fi
+                        done
+                        
+                        # 5. Cleanup
+                        echo -e "\${BLUE}清理临时数据库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" -e "DROP DATABASE \$TEMP_DB;"
+                        echo -e "\${GREEN}数据库增量更新完成!\${NC}"
+                    else
+                         echo -e "\${RED}创建临时数据库失败，可能是密码错误或权限不足，跳过数据库更新\${NC}"
+                    fi
+                else
+                    echo -e "\${RED}错误：找不到数据库文件 \$SQL_FILE\${NC}"
+                fi
+            else
+                echo -e "\${YELLOW}未找到配置文件，跳过数据库更新\${NC}"
+            fi
             
             echo -e "\${YELLOW}重新编译后端...\${NC}"
             cd backend
@@ -317,17 +490,17 @@ if curl -s --connect-timeout 5 https://www.google.com > /dev/null; then
 else
     echo -e "${GREEN}检测到国内网络环境，使用 Gitee 源${NC}"
     IS_CHINA=true
-    GIT_REPO="https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro-test.git"
+    GIT_REPO="https://gitee.com/xiaoxiaoguai-yyds/xxgkami-pro.git"
 fi
 
-# 2. 系统检测与基础依赖安装 (MySQL 8.0+, JDK 17, Node 18, Nginx)
-echo -e "${YELLOW}[2/8] 安装基础依赖 (MySQL 8.0+, JDK 17, Node 18, Nginx)...${NC}"
+# 2. 系统检测与基础依赖安装 (MySQL 8.0+, JDK 17, Node 22, Nginx)
+echo -e "${YELLOW}[2/8] 安装基础依赖 (MySQL 8.0+, JDK 17, Node 22, Nginx)...${NC}"
 
 check_mysql_version() {
     echo -e "${YELLOW}[前置检查] 验证 MySQL 版本兼容性...${NC}"
     if ! command -v mysql >/dev/null 2>&1; then
-        echo -e "${YELLOW}未检测到 MySQL 已安装，后续将尝试自动安装 MySQL 8.0${NC}"
-        return 0
+        echo -e "${RED}未检测到数据库，请自行安装8.0MySQL或前往宝塔安装MySQL8.0${NC}"
+        exit 1
     fi
     
     local mysql_ver_str=$(mysql -V 2>&1)
@@ -340,28 +513,25 @@ check_mysql_version() {
     local required_ver="8.0"
     
     if [ -z "$mysql_ver" ]; then
-         echo -e "${YELLOW}警告: 无法识别当前 MySQL 版本，跳过检查。${NC}"
+         echo -e "${YELLOW}警告: 无法识别当前 MySQL 版本。${NC}"
+         echo -e "${YELLOW}请确保您已安装 MySQL 8.0 或更高版本。${NC}"
+         read -p "确认已安装符合要求的 MySQL 版本? (y/n): " CONFIRM_VER
+         if [ "$CONFIRM_VER" != "y" ] && [ "$CONFIRM_VER" != "Y" ]; then
+             echo -e "${RED}退出脚本。${NC}"
+             exit 1
+         fi
          return 0
     fi
 
     echo -e "当前 MySQL 版本: ${mysql_ver}"
-    echo -e "要求 MySQL 版本: ${required_ver}+"
     
     # 版本对比 (使用 awk)
     if awk "BEGIN {exit !($mysql_ver >= $required_ver)}"; then
-        echo -e "${GREEN}MySQL 版本符合要求${NC}"
+        echo -e "${GREEN}MySQL 版本符合要求，将自动执行导入数据库流程${NC}"
         return 0
     else
-        echo -e "${RED}MySQL 版本不符合要求!${NC}"
-        echo -e "${YELLOW}警告: 强制执行可能会对其他项目造成影响 (可能导致数据库不兼容或服务中断)!${NC}"
-        read -p "是否强制继续安装? (y/n): " FORCE_MYSQL
-        if [ "$FORCE_MYSQL" == "y" ] || [ "$FORCE_MYSQL" == "Y" ]; then
-            echo -e "${YELLOW}已选择强制继续安装...${NC}"
-            return 0
-        else
-            echo -e "${RED}安装已取消${NC}"
-            exit 1
-        fi
+        echo -e "${RED}当前数据库版本小于8.0，本项目支持的数据库需大于8.0${NC}"
+        exit 1
     fi
 }
 
@@ -393,62 +563,23 @@ check_nginx() {
 }
 
 check_node() {
-    if node -v >/dev/null 2>&1; then
+    if command -v node >/dev/null 2>&1; then
         NODE_VER_FULL=$(node -v)
         NODE_VER=$(echo "$NODE_VER_FULL" | grep -oP 'v\K[0-9]+')
-        if [[ "$NODE_VER" -ge 18 ]]; then
-            echo -e "${GREEN}Node.js 已安装 (版本: $NODE_VER_FULL)${NC}"
-            return 0
+        if [[ "$NODE_VER" -ge 22 ]]; then
+             if command -v npm >/dev/null 2>&1; then
+                 echo -e "${GREEN}Node.js 已安装 (版本: $NODE_VER_FULL, npm: $(npm -v))${NC}"
+                 return 0
+             else
+                 echo -e "${YELLOW}Node.js 已安装但未检测到 npm${NC}"
+                 return 1
+             fi
         fi
     fi
     return 1
 }
 
-install_mysql8_debian() {
-    # 检查是否正在运行
-    if systemctl is-active --quiet mysql; then
-        echo -e "${GREEN}MySQL 正在运行，跳过安装配置${NC}"
-        return
-    fi
 
-    # 检查是否已安装 MySQL (通过 mysql -V)
-    if mysql -V >/dev/null 2>&1; then
-        if [[ "$(mysql -V)" == *"8."* ]]; then
-            echo -e "${GREEN}MySQL 已安装 (版本: $(mysql -V))${NC}"
-            return
-        fi
-    fi
-    
-    echo -e "${YELLOW}配置 MySQL 8.0 源...${NC}"
-    wget https://dev.mysql.com/get/mysql-apt-config_0.8.28-1_all.deb
-    DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.28-1_all.deb
-    apt-get update
-    apt-get install -y mysql-server
-}
-
-install_mysql8_rhel() {
-    # 检查是否正在运行
-    if systemctl is-active --quiet mysqld; then
-        echo -e "${GREEN}MySQL 正在运行，跳过安装配置${NC}"
-        return
-    fi
-
-    if mysql -V >/dev/null 2>&1; then
-        echo -e "${GREEN}MySQL 已安装 (版本: $(mysql -V))${NC}"
-        return
-    fi
-    
-    echo -e "${YELLOW}配置 MySQL 8.0 源...${NC}"
-    rpm -Uvh https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm
-    yum --enablerepo=mysql80-community install -y mysql-community-server
-    systemctl start mysqld
-    systemctl enable mysqld
-    
-    # 获取临时密码
-    TEMP_PASS=$(grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}')
-    echo -e "${YELLOW}MySQL 初始临时密码: $TEMP_PASS${NC}"
-    echo -e "${YELLOW}请务必在脚本运行后尽快修改密码!${NC}"
-}
 
 # 执行 MySQL 版本检查
 check_mysql_version
@@ -468,13 +599,27 @@ if [ -f /etc/debian_version ]; then
         apt-get install -y openjdk-17-jdk
     fi
     
-    # MySQL 8.0
-    install_mysql8_debian
+    # MySQL 8.0 (已通过前置检查)
+    # install_mysql8_debian (removed)
     
-    # Node.js 18.x
+    # Redis (新增)
+    if ! command -v redis-server >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在安装 Redis...${NC}"
+        apt-get install -y redis-server
+        systemctl enable redis-server
+        systemctl start redis-server
+    fi
+    
+    # Node.js 22.x
     if ! check_node; then
-        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
         apt-get install -y nodejs
+        
+        # Double check npm
+        if ! command -v npm >/dev/null 2>&1; then
+             echo -e "${YELLOW}未检测到 npm，尝试单独安装...${NC}"
+             apt-get install -y npm
+        fi
     fi
 elif [ -f /etc/redhat-release ]; then
     # CentOS/RHEL
@@ -490,13 +635,27 @@ elif [ -f /etc/redhat-release ]; then
         yum install -y java-17-openjdk-devel
     fi
     
-    # MySQL 8.0
-    install_mysql8_rhel
+    # MySQL 8.0 (已通过前置检查)
+    # install_mysql8_rhel (removed)
     
-    # Node.js 18.x
+    # Redis (新增)
+    if ! command -v redis-server >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在安装 Redis...${NC}"
+        yum install -y redis
+        systemctl enable redis
+        systemctl start redis
+    fi
+    
+    # Node.js 22.x
     if ! check_node; then
-        curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
         yum install -y nodejs
+        
+        # Double check npm
+        if ! command -v npm >/dev/null 2>&1; then
+             echo -e "${YELLOW}未检测到 npm，尝试单独安装...${NC}"
+             yum install -y npm
+        fi
     fi
 else
     echo -e "${RED}不支持的操作系统，请手动安装依赖${NC}"
@@ -530,6 +689,12 @@ if [ -d "$INSTALL_DIR" ]; then
             else
                 echo -e "${YELLOW}未找到配置文件，跳过备份${NC}"
             fi
+            
+            # 备份密钥目录 (防止密钥丢失导致数据无法解密)
+            if [ -d "$INSTALL_DIR/backend/keys" ]; then
+                cp -r "$INSTALL_DIR/backend/keys" /tmp/keys_backup
+                echo -e "${GREEN}已备份密钥目录到 /tmp/keys_backup${NC}"
+            fi
         else
             echo -e "${YELLOW}跳过配置文件备份${NC}"
         fi
@@ -545,6 +710,14 @@ if [ -d "$INSTALL_DIR" ]; then
         # 恢复配置提示
         if [ -f "/tmp/application.properties.bak" ] && [[ "$BACKUP_CHOICE" == "y" || "$BACKUP_CHOICE" == "Y" ]]; then
             echo -e "${YELLOW}提示: 之前的配置文件已备份 (/tmp/application.properties.bak)，如需恢复请手动操作${NC}"
+        fi
+        
+        # 自动恢复密钥目录
+        if [ -d "/tmp/keys_backup" ] && [[ "$BACKUP_CHOICE" == "y" || "$BACKUP_CHOICE" == "Y" ]]; then
+             mkdir -p "$INSTALL_DIR/backend"
+             cp -r /tmp/keys_backup "$INSTALL_DIR/backend/keys"
+             echo -e "${GREEN}已自动恢复密钥目录${NC}"
+             rm -rf /tmp/keys_backup
         fi
     elif [ "$OVERWRITE_CHOICE" == "c" ] || [ "$OVERWRITE_CHOICE" == "C" ]; then
         echo -e "${RED}用户取消安装，脚本退出${NC}"
@@ -721,10 +894,34 @@ else
 fi
 
 # 安装依赖
+if ! command -v npm >/dev/null 2>&1; then
+    echo -e "${YELLOW}检测到 npm 未安装，正在尝试自动安装...${NC}"
+    if [ -f /etc/debian_version ]; then
+        apt-get update
+        apt-get install -y npm
+    elif [ -f /etc/redhat-release ]; then
+        yum install -y npm
+    else
+        echo -e "${RED}无法识别的操作系统，请手动安装 npm${NC}"
+        exit 1
+    fi
+    
+    # 再次检查
+    if ! command -v npm >/dev/null 2>&1; then
+        echo -e "${RED}npm 安装失败，请手动安装后重试。${NC}"
+        exit 1
+    else
+        echo -e "${GREEN}npm 安装成功!${NC}"
+    fi
+fi
+
 if [ "$IS_CHINA" = true ]; then
-    echo -e "${YELLOW}使用淘宝 NPM 镜像...${NC}"
-    npm install --registry=https://registry.npmmirror.com
+    echo -e "${YELLOW}使用 npmmirror 镜像...${NC}"
+    npm config set registry https://registry.npmmirror.com/
+    npm install
 else
+    echo -e "${YELLOW}使用官方 npm 源...${NC}"
+    npm config set registry https://registry.npmjs.org/
     npm install
 fi
 # 构建 (支持多环境)
@@ -747,6 +944,31 @@ if [ -d "$NGINX_WEB_ROOT" ]; then
 fi
 mkdir -p $NGINX_WEB_ROOT
 cp -r $INSTALL_DIR/dist/* $NGINX_WEB_ROOT/
+
+# [修复] 设置文件权限和所有者，防止 403 Forbidden
+echo -e "${YELLOW}正在修复前端文件权限...${NC}"
+chmod -R 755 $NGINX_WEB_ROOT
+chmod -R 644 $NGINX_WEB_ROOT/* 2>/dev/null
+find $NGINX_WEB_ROOT -type d -exec chmod 755 {} \;
+
+# 自动检测 Nginx 用户
+NGINX_USER="root"
+if id "www" &>/dev/null; then
+    NGINX_USER="www"
+elif id "www-data" &>/dev/null; then
+    NGINX_USER="www-data"
+elif id "nginx" &>/dev/null; then
+    NGINX_USER="nginx"
+fi
+echo -e "${GREEN}检测到 Nginx 用户: ${NGINX_USER}${NC}"
+chown -R ${NGINX_USER}:${NGINX_USER} $NGINX_WEB_ROOT
+
+# 尝试修复 SELinux 上下文 (如果存在 restorecon 命令)
+if command -v restorecon &>/dev/null; then
+    echo -e "${YELLOW}尝试修复 SELinux 上下文...${NC}"
+    restorecon -R $NGINX_WEB_ROOT
+fi
+
 echo -e "${GREEN}前端静态文件已部署到 $NGINX_WEB_ROOT${NC}"
 
 # 7. 配置 Nginx 与域名
@@ -756,17 +978,26 @@ verify_domain() {
     local domain=$1
     echo -e "${YELLOW}正在验证域名解析: $domain${NC}"
     
-    local public_ip=$(curl -s ifconfig.me)
+    # 优先获取 IPv4 公网 IP
+    local public_ip=$(curl -s -4 ifconfig.me)
+    if [ -z "$public_ip" ]; then
+        public_ip=$(curl -s ifconfig.me)
+    fi
+
     if [ -z "$public_ip" ]; then
         echo -e "${YELLOW}无法获取服务器公网 IP，跳过自动验证${NC}"
         return 0
     fi
     
     local domain_ip=""
-    if command -v getent >/dev/null 2>&1; then
-        domain_ip=$(getent hosts "$domain" | awk '{print $1}' | head -n 1)
-    elif command -v ping >/dev/null 2>&1; then
-        domain_ip=$(ping -c 1 "$domain" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | head -n 1)
+    # 优先使用 ping 获取 IPv4 地址 (通过 grep 筛选 IPv4 格式)
+    if command -v ping >/dev/null 2>&1; then
+        domain_ip=$(ping -c 1 "$domain" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+    fi
+    
+    # 如果 ping 失败，尝试 getent 并筛选 IPv4
+    if [ -z "$domain_ip" ] && command -v getent >/dev/null 2>&1; then
+        domain_ip=$(getent hosts "$domain" | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
     fi
     
     if [ -z "$domain_ip" ]; then
@@ -786,19 +1017,45 @@ verify_domain() {
     fi
 }
 
-NGINX_CONF="/etc/nginx/conf.d/xxgkami.conf"
+# 检测所有可能的 Nginx 配置目录
+CONF_DIRS=()
+# 1. 系统默认
+if [ -d "/etc/nginx/conf.d" ]; then
+    CONF_DIRS+=("/etc/nginx/conf.d")
+fi
+# 2. 宝塔面板
+if [ -d "/www/server/panel/vhost/nginx" ]; then
+    CONF_DIRS+=("/www/server/panel/vhost/nginx")
+    echo -e "${YELLOW}检测到宝塔面板环境${NC}"
+    IS_BAOTA=true
+else
+    IS_BAOTA=false
+fi
+
+# 如果没有检测到任何目录，尝试创建系统默认目录
+if [ ${#CONF_DIRS[@]} -eq 0 ]; then
+    mkdir -p /etc/nginx/conf.d
+    CONF_DIRS+=("/etc/nginx/conf.d")
+fi
 
 # 询问是否绑定域名
 read -p "是否需要绑定域名？(y/n): " BIND_DOMAIN_CHOICE
 
 if [ "$BIND_DOMAIN_CHOICE" == "y" ] || [ "$BIND_DOMAIN_CHOICE" == "Y" ]; then
-    # 1. 获取服务器公网 IP
-    PUBLIC_IP=$(curl -s ifconfig.me)
+    # 1. 获取服务器公网 IP (优先 IPv4)
+    PUBLIC_IP=$(curl -s -4 ifconfig.me)
+    if [ -z "$PUBLIC_IP" ]; then
+        PUBLIC_IP=$(curl -s ifconfig.me)
+    fi
     echo -e "${GREEN}检测到服务器公网 IP: ${PUBLIC_IP}${NC}"
     
     # 2. 输入域名
     while true; do
         read -p "请输入您要绑定的域名 (例如: example.com): " USER_DOMAIN
+        
+        # 自动去除 http://, https://, 和尾部 /
+        USER_DOMAIN=$(echo "$USER_DOMAIN" | sed 's|http://||g' | sed 's|https://||g' | sed 's|/$||g')
+        
         if [ -z "$USER_DOMAIN" ]; then
             continue
         fi
@@ -814,11 +1071,22 @@ if [ "$BIND_DOMAIN_CHOICE" == "y" ] || [ "$BIND_DOMAIN_CHOICE" == "Y" ]; then
         fi
     done
     
+    # 移除默认配置以避免冲突
+    if [ -f /etc/nginx/sites-enabled/default ]; then
+        rm -f /etc/nginx/sites-enabled/default
+        echo -e "${YELLOW}已移除默认 Nginx 站点配置 (/etc/nginx/sites-enabled/default)${NC}"
+    fi
+    if [ -f /etc/nginx/conf.d/default.conf ]; then
+        mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak
+        echo -e "${YELLOW}已备份默认 Nginx 配置文件 (/etc/nginx/conf.d/default.conf -> .bak)${NC}"
+    fi
+
     # 3. 生成 Nginx 配置 (HTTP)
     echo -e "${YELLOW}正在生成 Nginx 配置 (HTTP)...${NC}"
     cat > $NGINX_CONF <<EOF
 server {
-    listen 80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name $USER_DOMAIN;
 
     # 字符集配置
@@ -843,13 +1111,27 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # 增加超时时间，防止长时间请求中断
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
     }
 }
 EOF
     echo -e "${GREEN}Nginx 配置已更新 (HTTP)${NC}"
     
-    # 重载 Nginx 以确保 HTTP 生效 (为 Certbot 做准备)
-    nginx -t && systemctl restart nginx
+    # 重载 Nginx
+    if [ "$IS_BAOTA" = true ]; then
+        echo -e "${YELLOW}正在重载宝塔 Nginx...${NC}"
+        /etc/init.d/nginx reload
+        if [ $? -ne 0 ]; then
+             echo -e "${YELLOW}尝试使用 systemctl reload nginx...${NC}"
+             systemctl reload nginx
+        fi
+    else
+        nginx -t && systemctl restart nginx
+    fi
     
     # 4. 询问是否申请 HTTPS
     read -p "是否申请免费 HTTPS 证书 (Let's Encrypt)? (y/n): " HTTPS_CHOICE
@@ -931,28 +1213,29 @@ EOF
     fi
 
 else
-    # 不绑定域名，走原有逻辑
-    if [ "$NGINX_IS_RUNNING" = true ]; then
-        echo -e "${GREEN}Nginx 正在运行且未请求绑定域名，跳过配置修改${NC}"
-    else
-        # 尝试获取公网 IP，如果获取失败则回退到 localhost
+    # 不绑定域名，默认使用服务器 IPv4 地址
+    echo -e "${YELLOW}未绑定域名，正在配置默认 IP 访问...${NC}"
+    
+    # 1. 获取服务器公网 IP (优先 IPv4)
+    PUBLIC_IP=$(curl -s -4 ifconfig.me)
+    if [ -z "$PUBLIC_IP" ]; then
         PUBLIC_IP=$(curl -s ifconfig.me)
-        if [ -z "$PUBLIC_IP" ]; then
-            SERVER_NAME="_"
-        else
-            SERVER_NAME="$PUBLIC_IP"
-        fi
+    fi
+    
+    if [ -z "$PUBLIC_IP" ]; then
+        SERVER_NAME="_"
+        echo -e "${YELLOW}无法获取公网 IP，使用默认通配符 '_'${NC}"
+    else
+        SERVER_NAME="$PUBLIC_IP"
+        echo -e "${GREEN}将使用服务器 IP: ${SERVER_NAME} 进行配置${NC}"
+    fi
 
-        # 备份原有配置
-        if [ -f "$NGINX_CONF" ]; then
-            cp "$NGINX_CONF" "${NGINX_CONF}.bak_$(date +%Y%m%d%H%M%S)"
-        fi
-
-        cat > $NGINX_CONF <<EOF
+    # 生成配置内容到临时变量
+    NGINX_CONFIG_CONTENT=$(cat <<EOF
 server {
-    listen 80;
-    listen [::]:80;
-    server_name $SERVER_NAME _;
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name $SERVER_NAME;
 
     # 字符集配置
     charset utf-8;
@@ -979,21 +1262,56 @@ server {
     }
 }
 EOF
-        # 检查 Nginx 配置并重启
-        nginx -t
-        if [ $? -eq 0 ]; then
-            systemctl enable nginx
-            systemctl restart nginx
-            echo -e "${GREEN}Nginx 配置已更新并重启${NC}"
-        else
-            echo -e "${RED}Nginx 配置语法有误，请检查配置文件${NC}"
-            # 尝试回滚
-            if [ -f "${NGINX_CONF}.bak_*" ]; then
-                LATEST_BAK=$(ls -t ${NGINX_CONF}.bak_* | head -n1)
-                cp "$LATEST_BAK" "$NGINX_CONF"
-                echo -e "${YELLOW}已回滚到最近的备份配置: $LATEST_BAK${NC}"
-            fi
+)
+
+    # 遍历所有配置目录进行写入和清理
+    for CONF_DIR in "${CONF_DIRS[@]}"; do
+        TARGET_CONF="$CONF_DIR/xxgkami.conf"
+        
+        # 备份原有配置
+        if [ -f "$TARGET_CONF" ]; then
+            cp "$TARGET_CONF" "${TARGET_CONF}.bak_$(date +%Y%m%d%H%M%S)"
         fi
+
+        # 禁用默认配置
+        if [ -f "$CONF_DIR/0.default.conf" ]; then
+            mv "$CONF_DIR/0.default.conf" "$CONF_DIR/0.default.conf.bak"
+            echo -e "${YELLOW}已禁用默认配置: $CONF_DIR/0.default.conf${NC}"
+        fi
+        if [ -f "$CONF_DIR/default.conf" ]; then
+            mv "$CONF_DIR/default.conf" "$CONF_DIR/default.conf.bak"
+            echo -e "${YELLOW}已禁用默认配置: $CONF_DIR/default.conf${NC}"
+        fi
+        
+        # 写入新配置
+        echo "$NGINX_CONFIG_CONTENT" > "$TARGET_CONF"
+        echo -e "${GREEN}Nginx 配置已写入: $TARGET_CONF${NC}"
+    done
+
+    # 额外清理 sites-enabled/default
+    if [ -f /etc/nginx/sites-enabled/default ]; then
+        rm -f /etc/nginx/sites-enabled/default
+        echo -e "${YELLOW}已移除 /etc/nginx/sites-enabled/default${NC}"
+    fi
+
+    # 检查 Nginx 配置并重启
+    nginx -t
+    if [ $? -eq 0 ]; then
+        echo -e "${YELLOW}正在尝试重载 Nginx 服务...${NC}"
+        
+        # 尝试重载宝塔 Nginx
+        if [ -f "/etc/init.d/nginx" ]; then
+             /etc/init.d/nginx reload
+        fi
+        
+        # 尝试重载系统 Nginx
+        if command -v systemctl >/dev/null 2>&1; then
+             systemctl reload nginx 2>/dev/null || systemctl restart nginx
+        fi
+        
+        echo -e "${GREEN}Nginx 服务已尝试重载/重启${NC}"
+    else
+        echo -e "${RED}Nginx 配置语法有误，请检查配置文件${NC}"
     fi
 fi
 
@@ -1053,6 +1371,64 @@ while true; do
             echo -e "\${YELLOW}正在拉取最新代码...\${NC}"
             cd \$INSTALL_DIR
             git pull
+            
+            # Database Update Logic
+            echo -e "\${YELLOW}正在检查数据库更新...\${NC}"
+            APP_PROP="\$INSTALL_DIR/backend/src/main/resources/application.properties"
+            if [ -f "\$APP_PROP" ]; then
+                # Extract DB Creds
+                DB_USER=\$(grep "spring.datasource.username" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_PWD=\$(grep "spring.datasource.password" \$APP_PROP | cut -d'=' -f2 | tr -d '\r')
+                DB_NAME="kami"
+                
+                SQL_FILE="\$INSTALL_DIR/database/kami.sql"
+                # Typo fix check
+                if [ ! -f "\$SQL_FILE" ] && [ -f "\$INSTALL_DIR/databaes/kami.sql" ]; then
+                    SQL_FILE="\$INSTALL_DIR/databaes/kami.sql"
+                fi
+                
+                if [ -f "\$SQL_FILE" ]; then
+                    echo -e "\${YELLOW}正在执行数据库智能更新...\${NC}"
+                    TEMP_DB="kami_update_temp_\$(date +%s)"
+                    
+                    # 1. Create Temp DB
+                    echo -e "\${BLUE}创建临时数据库 \$TEMP_DB...\${NC}"
+                    mysql -u\$DB_USER -p"\$DB_PWD" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null
+                    
+                    if [ \$? -eq 0 ]; then
+                        # 2. Import new SQL
+                        echo -e "\${BLUE}导入新版数据到临时库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB < "\$SQL_FILE"
+                        
+                        # 3. Sync Tables
+                        echo -e "\${BLUE}检查新增表...\${NC}"
+                        TEMP_TABLES=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
+                        
+                        for TABLE in \$TEMP_TABLES; do
+                            TABLE_EXISTS=\$(mysql -u\$DB_USER -p"\$DB_PWD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
+                            
+                            if [ "\$TABLE_EXISTS" -eq 0 ]; then
+                                echo -e "\${GREEN}检测到新增表: \$TABLE，正在创建...\${NC}"
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            else
+                                # 4. Sync Data (Insert Ignore)
+                                mysqldump -u\$DB_USER -p"\$DB_PWD" --no-create-info --insert-ignore --complete-insert \$TEMP_DB \$TABLE | mysql -u\$DB_USER -p"\$DB_PWD" \$DB_NAME
+                            fi
+                        done
+                        
+                        # 5. Cleanup
+                        echo -e "\${BLUE}清理临时数据库...\${NC}"
+                        mysql -u\$DB_USER -p"\$DB_PWD" -e "DROP DATABASE \$TEMP_DB;"
+                        echo -e "\${GREEN}数据库增量更新完成!\${NC}"
+                    else
+                         echo -e "\${RED}创建临时数据库失败，可能是密码错误或权限不足，跳过数据库更新\${NC}"
+                    fi
+                else
+                    echo -e "\${RED}错误：找不到数据库文件 \$SQL_FILE\${NC}"
+                fi
+            else
+                echo -e "\${YELLOW}未找到配置文件，跳过数据库更新\${NC}"
+            fi
             
             echo -e "\${YELLOW}重新编译后端...\${NC}"
             cd backend
@@ -1146,26 +1522,71 @@ EOF
 chmod +x /usr/local/bin/xxgkami
 echo -e "${GREEN}管理脚本已安装! 部署完成后输入 'xxgkami' 即可使用。${NC}"
 
-# 9. 健康检查
-echo -e "${YELLOW}[9/9] 执行健康检查...${NC}"
-sleep 30 # 等待服务启动
+# 9. 服务状态检查与自愈
+echo -e "${YELLOW}[9/9] 检查服务运行状态...${NC}"
 
-# 检查后端 API
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/auth/login)
-if [[ "$HTTP_CODE" == "200" ]] || [[ "$HTTP_CODE" == "401" ]] || [[ "$HTTP_CODE" == "405" ]]; then
-    echo -e "${GREEN}[成功] 后端服务响应正常 (HTTP $HTTP_CODE)${NC}"
+# 函数：检查并启动服务
+check_and_start_service() {
+    local service_name=$1
+    local display_name=$2
+    
+    echo -e "${BLUE}[执行命令] systemctl is-active $service_name${NC}"
+    # 捕获输出和退出码
+    local status_output
+    status_output=$(systemctl is-active $service_name 2>&1)
+    local status_code=$?
+
+    echo -e "${BLUE}[返回结果] $status_output (退出码: $status_code)${NC}"
+
+    if [ $status_code -eq 0 ]; then
+        echo -e "${GREEN}[成功] $display_name 已启动${NC}"
+    else
+        echo -e "${YELLOW}[警告] $display_name 未运行，正在尝试启动...${NC}"
+        echo -e "${BLUE}[执行命令] systemctl start $service_name${NC}"
+        
+        systemctl start $service_name
+        local start_code=$?
+        
+        if [ $start_code -eq 0 ]; then
+             echo -e "${GREEN}[命令执行成功]${NC}"
+        else
+             echo -e "${RED}[命令执行失败] 退出码: $start_code${NC}"
+        fi
+        
+        sleep 2
+        
+        echo -e "${BLUE}[复查命令] systemctl is-active $service_name${NC}"
+        status_output=$(systemctl is-active $service_name 2>&1)
+        status_code=$?
+        echo -e "${BLUE}[复查结果] $status_output (退出码: $status_code)${NC}"
+        
+        if [ $status_code -eq 0 ]; then
+            echo -e "${GREEN}[修复] $display_name 启动成功${NC}"
+        else
+            echo -e "${RED}[失败] $display_name 启动失败，请手动检查日志 (journalctl -u $service_name)${NC}"
+        fi
+    fi
+}
+
+# 检查 Nginx
+check_and_start_service "nginx" "Nginx Web服务器"
+
+# 检查 MySQL
+if systemctl list-unit-files | grep -q mysqld.service; then
+    check_and_start_service "mysqld" "MySQL 数据库"
 else
-    echo -e "${RED}[失败] 后端服务响应异常 (HTTP $HTTP_CODE)${NC}"
-    echo -e "请检查日志: journalctl -u xxgkami -n 50"
+    check_and_start_service "mysql" "MySQL 数据库"
 fi
 
-# 检查前端页面
-HTTP_CODE_WEB=$(curl -s -o /dev/null -w "%{http_code}" http://localhost)
-if [[ "$HTTP_CODE_WEB" == "200" ]]; then
-    echo -e "${GREEN}[成功] 前端页面访问正常${NC}"
-else
-    echo -e "${RED}[失败] 前端页面访问异常 (HTTP $HTTP_CODE_WEB)${NC}"
+# 检查 Redis
+if systemctl list-unit-files | grep -q redis.service; then
+    check_and_start_service "redis" "Redis 缓存服务"
+elif systemctl list-unit-files | grep -q redis-server.service; then
+    check_and_start_service "redis-server" "Redis 缓存服务"
 fi
+
+# 检查后端服务
+check_and_start_service "xxgkami" "XXG-KAMI 后端服务"
 
 echo -e "${BLUE}================================================${NC}"
 echo -e "${GREEN}      部署流程结束      ${NC}"
@@ -1186,7 +1607,10 @@ echo -e "用户端地址: ${SITE_URL}"
 echo -e "管理端地址: ${SITE_URL}/#/admin"
 echo -e "------------------------------------------------"
 echo -e "默认管理员账号: admin"
-echo -e "默认管理员密码: 123465"
+echo -e "默认管理员密码: 123456"
+echo -e "------------------------------------------------"
+echo -e "数据库账号: ${DB_USER}"
+echo -e "数据库密码: ${DB_PASSWORD}"
 echo -e "------------------------------------------------"
 echo -e "后端服务状态: systemctl status xxgkami"
 echo -e "Nginx状态: systemctl status nginx"

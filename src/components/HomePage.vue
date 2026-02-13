@@ -1339,17 +1339,17 @@ const scrollToFeatures = () => {
 }
 
 @media (max-width: 768px) {
-  .nav-container {
-    padding: 0 1rem;
-  }
-
-  .nav-actions {
-    display: none; /* 移动端简化 */
-  }
-
-  .hero-section {
-    padding: 4rem 0;
-  }
+    .nav-container {
+      padding: 0 1rem;
+    }
+  
+    .nav-links {
+      display: none;
+    }
+  
+    .hero-section {
+      padding: 4rem 0;
+    }
 
   .hero-title {
     font-size: 2.5rem;

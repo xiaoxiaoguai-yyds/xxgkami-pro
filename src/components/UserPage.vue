@@ -4,6 +4,9 @@
     <el-header class="user-header">
       <div class="header-content">
         <div class="brand">
+          <div class="mobile-menu-btn" @click="toggleDrawer">
+            <el-icon size="24" color="#fff"><Menu /></el-icon>
+          </div>
           <img src="../assets/icon.png" alt="XXG-KAMI-PRO" class="brand-icon">
           <span class="brand-text">XXG-KAMI-PRO 2.0</span>
           <el-tag type="success" size="small" class="user-badge" effect="plain">用户端</el-tag>
@@ -85,7 +88,7 @@
           
           <!-- 统计卡片 -->
           <el-row :gutter="20" class="stats-row">
-            <el-col :span="6">
+            <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
               <el-card class="stat-card" shadow="never">
                 <div class="stat-content">
                   <div class="stat-icon total">
@@ -98,7 +101,7 @@
                 </div>
               </el-card>
             </el-col>
-            <el-col :span="6">
+            <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
               <el-card class="stat-card" shadow="never">
                 <div class="stat-content">
                   <div class="stat-icon used">
@@ -111,7 +114,7 @@
                 </div>
               </el-card>
             </el-col>
-            <el-col :span="6">
+            <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
               <el-card class="stat-card" shadow="never">
                 <div class="stat-content">
                   <div class="stat-icon unused">
@@ -124,7 +127,7 @@
                 </div>
               </el-card>
             </el-col>
-            <el-col :span="6">
+            <el-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
               <el-card class="stat-card" shadow="never">
                 <div class="stat-content">
                   <div class="stat-icon expired">
@@ -289,7 +292,7 @@
             
             <el-row :gutter="20">
               <!-- 时间卡购买 -->
-              <el-col :span="12">
+              <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
                 <el-card shadow="never" class="purchase-card">
                   <template #header>
                     <div class="purchase-card-header">
@@ -356,7 +359,7 @@
               </el-col>
               
               <!-- 次数卡购买 -->
-              <el-col :span="12">
+              <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
                 <el-card shadow="never" class="purchase-card">
                   <template #header>
                     <div class="purchase-card-header">
@@ -476,7 +479,7 @@
           </div>
           
           <el-row :gutter="20">
-            <el-col :span="8">
+            <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
               <el-card shadow="never">
                 <template #header>
                   <span>头像设置</span>
@@ -498,7 +501,7 @@
                 </div>
               </el-card>
             </el-col>
-            <el-col :span="16">
+            <el-col :xs="24" :sm="24" :md="16" :lg="16" :xl="16">
               <el-card shadow="never">
                 <template #header>
                   <span>基本信息</span>
@@ -602,6 +605,57 @@
         </div>
       </el-main>
     </el-container>
+
+    <!-- 移动端侧边栏抽屉 -->
+    <el-drawer
+      v-model="drawerVisible"
+      direction="ltr"
+      size="240px"
+      :with-header="false"
+      class="mobile-drawer"
+      append-to-body
+      :z-index="3000"
+    >
+      <div class="drawer-menu-container">
+        <div class="drawer-brand">
+          <img src="../assets/icon.png" alt="Logo" class="brand-icon">
+          <span class="brand-text">XXG-KAMI-PRO</span>
+        </div>
+        <el-menu
+          :default-active="activeMenu"
+          class="sidebar-menu"
+          @select="(index) => { handleMenuSelect(index); drawerVisible = false; }"
+          background-color="#ffffff"
+          text-color="#606266"
+          active-text-color="#409eff"
+        >
+          <el-menu-item index="dashboard">
+            <el-icon><Odometer /></el-icon>
+            <span>仪表盘</span>
+          </el-menu-item>
+          <el-menu-item index="card-query">
+            <el-icon><Search /></el-icon>
+            <span>卡密查询</span>
+          </el-menu-item>
+          <el-menu-item index="usage-records">
+            <el-icon><Document /></el-icon>
+            <span>使用记录</span>
+          </el-menu-item>
+          <el-menu-item index="my-cards">
+            <el-icon><CreditCard /></el-icon>
+            <span>我的卡密</span>
+          </el-menu-item>
+          <el-menu-item index="purchase-cards">
+            <el-icon><ShoppingCart /></el-icon>
+            <span>购买卡密</span>
+          </el-menu-item>
+          <el-menu-item index="profile">
+            <el-icon><User /></el-icon>
+            <span>个人信息</span>
+          </el-menu-item>
+        </el-menu>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -623,6 +677,7 @@ export default {
   setup(props, { emit }) {
     // 响应式数据
     const activeMenu = ref('dashboard')
+    const drawerVisible = ref(false)
     const loading = ref(false)
     const currentPage = ref(1)
     const pageSize = ref(10)
@@ -1072,6 +1127,11 @@ export default {
     })
 
     // 方法
+    const toggleDrawer = () => {
+      console.log('Toggling drawer, current:', drawerVisible.value)
+      drawerVisible.value = !drawerVisible.value
+    }
+
     const handleMenuSelect = (index) => {
       activeMenu.value = index
     }
@@ -1340,7 +1400,9 @@ export default {
         purchaseCard,
         getOrderStatusType,
         getOrderStatusText,
-        viewOrderDetail
+        viewOrderDetail,
+        toggleDrawer,
+        drawerVisible
       }
   }
 }
@@ -1573,9 +1635,47 @@ export default {
 }
 
 /* 响应式设计 */
+.mobile-menu-btn {
+  display: none;
+  margin-right: 15px;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  transition: background 0.3s;
+  z-index: 200; /* 确保在最上层 */
+}
+
+.mobile-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mobile-menu-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.drawer-menu-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-brand {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #e6e6e6;
+}
+
 @media (max-width: 768px) {
   .sidebar {
-    width: 64px !important;
+    display: none !important;
+  }
+  
+  .mobile-menu-btn {
+    display: flex; /* 改为 flex 布局 */
+    align-items: center;
+    justify-content: center;
   }
   
   .main-content {
@@ -1590,13 +1690,15 @@ export default {
     padding: 0 10px;
   }
   
-  .brand-text {
+  .user-header .brand-text {
     display: none;
   }
   
+  /* 
   .sidebar-menu .el-menu-item span {
     display: none;
   }
+  */
 }
 
 @media (max-width: 480px) {

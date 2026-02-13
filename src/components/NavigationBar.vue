@@ -5,7 +5,14 @@
         <img src="../assets/icon.png" alt="XXG-KAMI-PRO" class="logo-img">
         <span class="logo-text">XXG-KAMI-PRO</span>
       </div>
-      <nav class="nav-menu">
+      
+      <!-- Mobile Menu Toggle -->
+      <button class="mobile-menu-toggle" @click="toggleMobileMenu">
+        <svg v-if="!isMobileMenuOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+
+      <nav class="nav-menu" :class="{ 'mobile-open': isMobileMenuOpen }">
         <a href="#" 
            :class="{ active: activeTab === 'overview' }" 
            @click.prevent="handleTabClick('overview')">
@@ -79,26 +86,6 @@
       </nav>
     </div>
     <div class="header-right">
-      <div class="message-center-container" ref="messageContainer">
-        <div class="message-icon-btn" @click="toggleMessages" :class="{ active: showMessages }">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-          <span class="badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
-        </div>
-        
-        <div class="message-dropdown" v-if="showMessages">
-          <div class="dropdown-header">
-            <h3>消息通知</h3>
-            <button class="mark-read-btn" v-if="unreadCount > 0">全部已读</button>
-          </div>
-          <div class="dropdown-content">
-            <div class="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-              <p>暂无新消息</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div class="user-info">
         <el-dropdown trigger="click" @command="handleCommand">
           <div class="user-dropdown-trigger">
@@ -168,10 +155,8 @@ const props = defineProps({
 
 const emit = defineEmits(['logout', 'tab-change'])
 
-const showMessages = ref(false)
 const showSettingsSub = ref(false)
-const unreadCount = ref(0)
-const messageContainer = ref(null)
+const isMobileMenuOpen = ref(false)
 
 // Admin Profile Logic
 const showAdminModal = ref(false)
@@ -228,24 +213,29 @@ const updateAdminProfile = async () => {
 const handleTabClick = (tab) => {
   console.log('NavigationBar: 点击了标签页:', tab)
   emit('tab-change', tab)
+  isMobileMenuOpen.value = false
 }
 
 const handleSubMenuClick = (tab, section) => {
   emit('tab-change', tab, section)
   showSettingsSub.value = false
+  isMobileMenuOpen.value = false
 }
 
-const toggleMessages = () => {
-  showMessages.value = !showMessages.value
+const toggleMobileMenu = () => {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value
 }
 
 // 点击外部关闭下拉菜单
+/*
 const handleClickOutside = (event) => {
   if (messageContainer.value && !messageContainer.value.contains(event.target)) {
     showMessages.value = false
   }
 }
+*/
 
+/*
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
 })
@@ -253,6 +243,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
+*/
 </script>
 
 <style scoped>
@@ -630,36 +621,104 @@ onUnmounted(() => {
   }
 }
 
+.mobile-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  color: #374151;
+}
+
+.mobile-menu-toggle svg {
+  width: 24px;
+  height: 24px;
+}
+
 @media (max-width: 768px) {
   .dashboard-header {
-    flex-direction: column;
-    height: auto;
-    padding: 1rem;
-    gap: 1rem;
-    position: relative;
+    height: 64px;
+    padding: 0 1rem;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    flex-direction: row;
   }
 
   .header-left {
-    flex-direction: column;
-    align-items: flex-start;
+    width: auto;
+    flex: 1;
+    justify-content: flex-start;
     gap: 1rem;
-    width: 100%;
+  }
+
+  .mobile-menu-toggle {
+    display: block;
+    margin-right: 0.5rem;
   }
 
   .nav-menu {
-    flex-wrap: wrap;
-    width: 100%;
+    display: none;
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    background: white;
+    flex-direction: column;
+    padding: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    height: auto;
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    border-top: 1px solid #e5e7eb;
     gap: 0.5rem;
+  }
+
+  .nav-menu.mobile-open {
+    display: flex;
   }
   
   .nav-menu a {
-    flex: 1;
-    justify-content: center;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    justify-content: flex-start;
   }
 
   .header-right {
+    width: auto;
+  }
+  
+  .sub-menu {
+    position: static;
+    transform: none;
+    box-shadow: none;
+    border: none;
+    background: #f9fafb;
+    margin-top: 0;
+    padding-left: 2rem;
     width: 100%;
-    justify-content: flex-end;
+    box-sizing: border-box;
+  }
+  
+  .sub-menu::before {
+    display: none;
+  }
+  
+  .nav-item-group {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    height: auto;
+  }
+  
+  .nav-item-group > a {
+    width: 100%;
+  }
+
+  .user-details {
+    display: none;
   }
 }
 </style>

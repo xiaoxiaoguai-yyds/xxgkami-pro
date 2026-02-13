@@ -335,6 +335,7 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .dashboard-main {
     padding: 1rem;
+    padding-top: 1rem; /* Adjust if header is fixed */
   }
 }
 </style>

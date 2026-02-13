@@ -281,6 +281,9 @@ public class CustomInterfaceController {
             case "card_type":
                 if (card == null) return "";
                 return "time".equals(card.getCardType()) ? "时间卡" : "次数卡";
+            case "card_status":
+                if (card == null) return "no";
+                return card.getStatus() == 1 ? "yes" : "no";
             default:
                 return null;
         }

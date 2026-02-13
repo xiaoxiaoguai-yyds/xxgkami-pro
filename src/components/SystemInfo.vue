@@ -71,7 +71,17 @@ const currentVersion = 'v1.0.0'          <el-descriptions-item label="联系邮�
           </div>
         </template>
         <el-timeline>
-          <el-timeline-item timestamp="2026-02-09" placement="top" type="primary" size="large">
+          <el-timeline-item timestamp="2026-02-13" placement="top" type="primary" size="large">
+            <el-card>
+              <h4>v1.0.3 版本更新</h4>
+              <p>1. 全面优化移动端 UI 体验，重构用户管理页面为响应式卡片布局</p>
+              <p>2. 修复移动端侧边栏菜单无法展开的问题，优化首页导航栏显示</p>
+              <p>3. API 接口自定义返回配置新增“卡密状态”字段支持</p>
+              <p>4. 优化管理后台顶部导航栏，移除冗余的消息通知入口</p>
+              <p>5. 修复部分已知 UI 溢出和布局错位问题</p>
+            </el-card>
+          </el-timeline-item>
+          <el-timeline-item timestamp="2026-02-09" placement="top" size="large">
             <el-card>
               <h4>v1.0.2 版本更新</h4>
               <p>1. 修复用户注册时因邮件配置缺失导致的 500 错误，优化异常处理逻辑</p>
@@ -140,7 +150,7 @@ const currentVersion = 'v1.0.0'          <el-descriptions-item label="联系邮�
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-const currentVersion = 'v1.0.2'
+const currentVersion = 'v1.0.3'
 const checking = ref(false)
 const showUpdateDialog = ref(false)
 const updateInfo = ref(null)
