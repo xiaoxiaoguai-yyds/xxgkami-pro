@@ -92,6 +92,8 @@ public class AuthService {
         user.setNickname(request.getUsername()); // Default nickname
         user.setEmail(request.getEmail());
         user.setStatus(1);
+        user.setEmailVerified(0);
+        user.setLoginCount(0);
         user.setCreateTime(LocalDateTime.now());
         user.setRegisterIp("127.0.0.1"); // Placeholder
         

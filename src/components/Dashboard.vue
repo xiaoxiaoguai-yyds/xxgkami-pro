@@ -190,7 +190,7 @@ const handleCreateKeys = async (keyData) => {
 
 const handleDeleteKey = async (keyId) => {
   try {
-    const result = await mockDeleteKey(keyId)
+    const result = await cardApi.deleteCard(keyId)
     if (result.success) {
       // 重新加载卡密数据
       await loadKeys()

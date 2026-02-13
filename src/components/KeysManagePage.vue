@@ -2,10 +2,16 @@
   <div class="keys-manage-page">
     <div class="section-header">
       <h2>卡密管理</h2>
-      <button class="btn-primary" @click="showCreateKeyModal = true">
-        <i class="fas fa-plus"></i>
-        生成卡密
-      </button>
+      <div class="header-actions">
+        <button class="btn-secondary" @click="showExportModal = true">
+          <i class="fas fa-file-export"></i>
+          导出数据
+        </button>
+        <button class="btn-primary" @click="showCreateKeyModal = true">
+          <i class="fas fa-plus"></i>
+          生成卡密
+        </button>
+      </div>
     </div>
     
     <div class="keys-table">
@@ -159,6 +165,69 @@
       </div>
     </div>
 
+    <!-- 导出数据模态框 -->
+    <div v-if="showExportModal" class="modal-overlay" @click="showExportModal = false">
+      <div class="modal-content export-modal" @click.stop>
+        <div class="modal-header">
+          <h3>导出卡密数据</h3>
+          <button class="close-btn" @click="showExportModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="export-settings">
+            <div class="setting-group">
+              <h4>选择导出列</h4>
+              <div class="checkbox-grid">
+                <label v-for="col in availableColumns" :key="col.key" class="checkbox-label">
+                  <input type="checkbox" v-model="selectedColumns" :value="col.key">
+                  {{ col.label }}
+                </label>
+              </div>
+            </div>
+            <div class="setting-group">
+              <h4>导出格式</h4>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" v-model="exportFormat" value="xlsx"> Excel (.xlsx)
+                </label>
+                <label class="radio-label">
+                  <input type="radio" v-model="exportFormat" value="csv"> CSV (.csv)
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="preview-section">
+            <h4>数据预览 (前5条)</h4>
+            <div class="preview-table-container">
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th v-for="colKey in selectedColumns" :key="colKey">
+                      {{ getColumnLabel(colKey) }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, index) in previewData" :key="index">
+                    <td v-for="colKey in selectedColumns" :key="colKey">
+                      {{ row[colKey] }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showExportModal = false">取消</button>
+          <button class="btn-primary" @click="exportData" :disabled="selectedColumns.length === 0 || exporting">
+            <i class="fas" :class="exporting ? 'fa-spinner fa-spin' : 'fa-file-export'"></i>
+            {{ exporting ? '导出中...' : '确认导出' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 编辑卡密模态框 -->
     <div v-if="showEditKeyModal" class="modal-overlay" @click="showEditKeyModal = false">
       <div class="modal-content" @click.stop>
@@ -268,8 +337,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import * as XLSX from 'xlsx'
+import { cardApi } from '../services/api.js'
 
 const props = defineProps({
   keys: Array
@@ -279,6 +350,119 @@ const emit = defineEmits(['create-keys', 'delete-key', 'update-key', 'toggle-key
 
 const showCreateKeyModal = ref(false)
 const showEditKeyModal = ref(false)
+const showExportModal = ref(false)
+const exporting = ref(false)
+const exportFormat = ref('xlsx')
+const selectedColumns = ref(['id', 'card_key', 'card_type', 'status', 'create_time'])
+
+const availableColumns = [
+  { key: 'id', label: '序号' },
+  { key: 'card_key', label: '卡密' },
+  { key: 'encrypted_key', label: '加密卡密' },
+  { key: 'user_info', label: '使用者' },
+  { key: 'remaining_time', label: '剩余时间' },
+  { key: 'remaining_count', label: '剩余次数' },
+  { key: 'expire_time', label: '过期时间' },
+  { key: 'card_type', label: '卡密类型' },
+  { key: 'is_exclusive', label: '是否专属' },
+  { key: 'api_key_id', label: '专属API Key' }
+]
+
+const getColumnLabel = (key) => {
+  const col = availableColumns.find(c => c.key === key)
+  return col ? col.label : key
+}
+
+// 简单的前端混淆实现，与ApiManagePage保持一致
+const obfuscateCardKey = (rawKey) => {
+  if (!rawKey) return rawKey
+  try {
+    const encoded = encodeURIComponent(rawKey)
+    const reversed = encoded.split('').reverse().join('')
+    const base64 = btoa(reversed)
+    return base64.replace(/e/g, '*').replace(/U/g, '-')
+  } catch (e) {
+    console.error('Obfuscation failed:', e)
+    return rawKey
+  }
+}
+
+const processExportData = (data) => {
+  return data.map(item => {
+    const processed = {}
+    
+    // 基础字段处理
+    if (selectedColumns.value.includes('id')) processed.id = item.id
+    if (selectedColumns.value.includes('card_key')) processed.card_key = item.card_key
+    if (selectedColumns.value.includes('encrypted_key')) processed.encrypted_key = obfuscateCardKey(item.card_key)
+    
+    // 使用者信息 (优先显示设备ID或IP)
+    if (selectedColumns.value.includes('user_info')) {
+      processed.user_info = item.device_id ? `Device: ${item.device_id}` : (item.ip_address ? `IP: ${item.ip_address}` : '-')
+    }
+    
+    // 剩余时间/次数
+    if (selectedColumns.value.includes('remaining_time')) {
+      processed.remaining_time = item.card_type === 'time' ? `${item.duration}天` : '-'
+    }
+    if (selectedColumns.value.includes('remaining_count')) {
+      processed.remaining_count = item.card_type === 'count' ? `${item.remaining_count}/${item.total_count}` : '-'
+    }
+    
+    // 时间字段
+    if (selectedColumns.value.includes('expire_time')) processed.expire_time = formatDate(item.expire_time)
+    if (selectedColumns.value.includes('create_time')) processed.create_time = formatDate(item.create_time) // Add create_time if needed, though not in user request list but useful
+    
+    // 类型和专属信息
+    if (selectedColumns.value.includes('card_type')) processed.card_type = getCardTypeText(item.card_type)
+    if (selectedColumns.value.includes('status')) processed.status = getStatusText(item.status) // Status also useful
+    if (selectedColumns.value.includes('is_exclusive')) processed.is_exclusive = item.api_key_id ? '是' : '否'
+    if (selectedColumns.value.includes('api_key_id')) processed.api_key_id = item.api_key_id || '-'
+    
+    return processed
+  })
+}
+
+const previewData = computed(() => {
+  if (!props.keys || props.keys.length === 0) return []
+  return processExportData(props.keys.slice(0, 5))
+})
+
+const exportData = async () => {
+  if (selectedColumns.value.length === 0) return
+  
+  exporting.value = true
+  try {
+    // 获取所有数据 (如果 props.keys 是分页后的，这里应该请求 API 获取所有，但目前 dashboard 似乎一次性加载了所有 keys)
+    // 根据 Dashboard.vue 的 loadKeys 实现，cardApi.getAllCards() 获取了所有数据赋值给 keys
+    // 所以 props.keys 应该是全量数据
+    const allData = props.keys || []
+    
+    const dataToExport = processExportData(allData)
+    
+    // 创建工作簿
+    const wb = XLSX.utils.book_new()
+    
+    // 转换表头为中文
+    const header = selectedColumns.value.map(key => getColumnLabel(key))
+    const body = dataToExport.map(row => selectedColumns.value.map(key => row[key]))
+    
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body])
+    XLSX.utils.book_append_sheet(wb, ws, "卡密数据")
+    
+    // 导出文件
+    const fileName = `卡密导出_${new Date().toISOString().slice(0,10)}.${exportFormat.value}`
+    XLSX.writeFile(wb, fileName)
+    
+    ElMessage.success('导出成功')
+    showExportModal.value = false
+  } catch (error) {
+    console.error('Export failed:', error)
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 
 // 分页相关状态
 const currentPage = ref(1)
@@ -494,6 +678,93 @@ const copyKey = async (cardKey) => {
   padding: 2rem;
   background: white;
   border-bottom: 1px solid #e1e5e9;
+}
+
+.header-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.export-modal {
+  max-width: 800px;
+  width: 90%;
+}
+
+.export-settings {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.setting-group h4 {
+  margin: 0 0 1rem 0;
+  color: #2d3748;
+  font-size: 1rem;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.checkbox-label, .radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: #4a5568;
+  font-size: 0.875rem;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.preview-section {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1.5rem;
+}
+
+.preview-section h4 {
+  margin: 0 0 1rem 0;
+  color: #2d3748;
+  font-size: 1rem;
+}
+
+.preview-table-container {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.preview-table th, .preview-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.preview-table th {
+  background: #f7fafc;
+  font-weight: 600;
+  color: #4a5568;
+}
+
+@media (max-width: 768px) {
+  .export-settings {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
 }
 
 .section-header h2 {

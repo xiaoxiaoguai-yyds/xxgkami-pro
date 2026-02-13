@@ -59,6 +59,11 @@ public class SocialUserMapper {
         jdbcTemplate.update(sql, userId, socialType);
     }
 
+    public void deleteById(Long id) {
+        String sql = "DELETE FROM social_users WHERE id = ?";
+        jdbcTemplate.update(sql, id);
+    }
+
     private static class SocialUserRowMapper implements RowMapper<SocialUser> {
         @Override
         public SocialUser mapRow(ResultSet rs, int rowNum) throws SQLException {

@@ -13,52 +13,52 @@
       </button>
 
       <nav class="nav-menu" :class="{ 'mobile-open': isMobileMenuOpen }">
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'overview' }" 
-           @click.prevent="handleTabClick('overview')">
+           @click="handleTabClick('overview')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
           概览
         </a>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'keys' }" 
-           @click.prevent="handleTabClick('keys')">
+           @click="handleTabClick('keys')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
           卡密管理
         </a>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'pricing' }" 
-           @click.prevent="handleTabClick('pricing')">
+           @click="handleTabClick('pricing')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
           定价管理
         </a>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'orders' }" 
-           @click.prevent="handleTabClick('orders')">
+           @click="handleTabClick('orders')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           订单管理
         </a>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'api' }" 
-           @click.prevent="handleTabClick('api')">
+           @click="handleTabClick('api')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
           API管理
         </a>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'users' }" 
-           @click.prevent="handleTabClick('users')">
+           @click="handleTabClick('users')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           用户管理
         </a>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'notification' }" 
-           @click.prevent="handleTabClick('notification')">
+           @click="handleTabClick('notification')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           通知管理
         </a>
         <div class="nav-item-group" @mouseenter="showSettingsSub = true" @mouseleave="showSettingsSub = false">
-          <a href="#" 
+          <a href="javascript:void(0)" 
              :class="{ active: activeTab === 'settings' }" 
-             @click.prevent="handleTabClick('settings')">
+             @click="handleTabClick('settings')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             系统设置
             <el-icon class="sub-arrow"><ArrowDown /></el-icon>
@@ -71,15 +71,15 @@
             <div class="sub-menu-item" @click.stop="handleSubMenuClick('settings', 'maintenance')">系统维护</div>
           </div>
         </div>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'maintenance' }" 
-           @click.prevent="handleTabClick('maintenance')">
+           @click="handleTabClick('maintenance')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
           系统维护
         </a>
-        <a href="#" 
+        <a href="javascript:void(0)" 
            :class="{ active: activeTab === 'system_info' }" 
-           @click.prevent="handleTabClick('system_info')">
+           @click="handleTabClick('system_info')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
           系统信息
         </a>

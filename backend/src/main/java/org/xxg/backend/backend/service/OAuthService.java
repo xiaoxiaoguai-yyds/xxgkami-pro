@@ -63,6 +63,45 @@ public class OAuthService {
         }
         if (callbackDomain.endsWith("/")) callbackDomain = callbackDomain.substring(0, callbackDomain.length() - 1);
         
+        // Ensure callbackDomain has protocol
+        if (!callbackDomain.startsWith("http://") && !callbackDomain.startsWith("https://")) {
+            // Default to http if no protocol is specified, but allow https if already present
+            // In a real scenario, we might want to detect or configure this better.
+            // For now, if the user input "example.com", we prepend "http://".
+            // If they want https, they should input "https://example.com" or we can default to https if preferred.
+            // Given the user request "support http and https", it implies we should not force http if not needed,
+            // or perhaps dynamically detect? But we are generating a URL for an external service to call back.
+            // The safest bet for modern web is usually https, but local dev is http.
+            // Let's assume if no protocol, we prepend http:// as a safe default for IP/localhost,
+            // BUT if it looks like a domain, maybe https?
+            // Actually, the previous fix forced "http://".
+            // If the user wants https, they should enter it in the settings.
+            // But if they just entered "baoxian18.com", we forced "http://".
+            // The user says "support http and https".
+            // This likely means: Don't just blindly add "http://".
+            // If the string starts with nothing, we still need a protocol for a valid URL.
+            // Let's check if it looks like a domain that typically uses https?
+            // Or better, just default to http:// if missing, as users who need https usually type it.
+            // Wait, the issue might be that I hardcoded "http://" in the previous step.
+            // The code `if (!callbackDomain.startsWith("http://") && !callbackDomain.startsWith("https://"))`
+            // correctly checks BOTH.
+            // So if the user enters "https://...", it skips the block.
+            // If they enter "example.com", it enters the block and adds "http://".
+            // This logic seems sound for "supporting both" by respecting user input, but providing a default.
+            // UNLESS the user implies we should auto-detect or allow relative protocol `//`?
+            // `//` is not valid for backend redirect construction usually.
+            
+            // Let's assume the user means "don't break if I entered https".
+            // My previous code:
+            // if (!startsWith("http://") && !startsWith("https://")) { callbackDomain = "http://" + ... }
+            // This ALREADY supports https if the user typed it.
+            
+            // Maybe the user wants us to *prefer* https or handle cases where `http` was hardcoded elsewhere?
+            // Let's look at `OAuthController.java` as well.
+            
+            callbackDomain = "http://" + callbackDomain;
+        }
+        
         System.out.println("DEBUG: Final Callback Domain: " + callbackDomain);
 
         String callbackUrl = callbackDomain + "/api/oauth/callback";
@@ -165,7 +204,15 @@ public class OAuthService {
 
             // Check if bound
             SocialUser socialUser = socialUserMapper.findBySocialUidAndType(socialUid, type);
-            User user;
+            User user = null;
+
+            if (socialUser != null) {
+                user = userMapper.findById(socialUser.getUserId());
+                if (user == null) {
+                    socialUserMapper.deleteById(socialUser.getId());
+                    socialUser = null;
+                }
+            }
 
             if (socialUser == null) {
                 // Not bound, check if we need to register
@@ -209,8 +256,6 @@ public class OAuthService {
                 
                 return result;
 
-            } else {
-                user = userMapper.findById(socialUser.getUserId());
             }
 
             // Login (Existing user)

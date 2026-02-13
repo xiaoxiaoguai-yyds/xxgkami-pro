@@ -69,6 +69,11 @@ public class OAuthController {
             callbackDomain = "http://localhost:5173"; // Default dev
         }
         if (callbackDomain.endsWith("/")) callbackDomain = callbackDomain.substring(0, callbackDomain.length() - 1);
+        
+        // Ensure callbackDomain has protocol
+        if (!callbackDomain.startsWith("http://") && !callbackDomain.startsWith("https://")) {
+            callbackDomain = "http://" + callbackDomain;
+        }
 
         try {
             Map<String, Object> result = oAuthService.handleCallback(type, code);
@@ -80,19 +85,19 @@ public class OAuthController {
                  // Encode nickname
                  if (nickname != null) nickname = java.net.URLEncoder.encode(nickname, "UTF-8");
                  
-                 String redirect = String.format("%s/oauth/callback?needRegister=true&registerToken=%s&nickname=%s", 
-                     callbackDomain, registerToken, nickname != null ? nickname : "");
-                 
-                 response.sendRedirect(redirect);
-                 return;
-            }
+                 String redirect = String.format("%s/#/oauth/callback?needRegister=true&registerToken=%s&nickname=%s", 
+                    callbackDomain, registerToken, nickname != null ? nickname : "");
+                
+                response.sendRedirect(redirect);
+                return;
+           }
 
-            String token = (String) result.get("token");
-            String refreshToken = (String) result.get("refreshToken");
-            
-            String redirect = String.format("%s/oauth/callback?token=%s&refreshToken=%s", callbackDomain, token, refreshToken);
-            
-            response.sendRedirect(redirect);
+           String token = (String) result.get("token");
+           String refreshToken = (String) result.get("refreshToken");
+           
+           String redirect = String.format("%s/#/oauth/callback?token=%s&refreshToken=%s", callbackDomain, token, refreshToken);
+           
+           response.sendRedirect(redirect);
         } catch (Exception e) {
             response.getWriter().write("Login failed: " + e.getMessage());
         }

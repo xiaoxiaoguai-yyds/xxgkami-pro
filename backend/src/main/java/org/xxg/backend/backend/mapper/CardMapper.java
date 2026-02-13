@@ -252,6 +252,19 @@ public class CardMapper {
         return jdbcTemplate.query(sql, new CardRowMapper());
     }
 
+    public void delete(Long id) {
+        jdbcTemplate.update("DELETE FROM cards WHERE id = ?", id);
+    }
+
+    public Card findById(Long id) {
+        String sql = "SELECT * FROM cards WHERE id = ?";
+        try {
+            return jdbcTemplate.queryForObject(sql, new CardRowMapper(), id);
+        } catch (org.springframework.dao.EmptyResultDataAccessException e) {
+            return null;
+        }
+    }
+
     private static class CardRowMapper implements RowMapper<Card> {
         @Override
         public Card mapRow(ResultSet rs, int rowNum) throws SQLException {

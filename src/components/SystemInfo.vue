@@ -22,6 +22,9 @@
           </el-descriptions-item>
           <el-descriptions-item label="发布时间">2026-01-17</el-descriptions-item>
           <el-descriptions-item label="开发语言">Vue 3 + Spring Boot 3</el-descriptions-item>
+          <el-descriptions-item label="官方网站">
+            <a href="https://www.xxgkami.com" target="_blank" class="link">www.xxgkami.com</a>
+          </el-descriptions-item>
         </el-descriptions>
       </el-card>
 
@@ -58,6 +61,24 @@ const currentVersion = 'v1.0.0'          <el-descriptions-item label="联系邮�
         <div class="license-content">
           <p>本系统遵循 Apache-2.0 开源协议。</p>
           <p>您可以免费使用、修改和分发本软件，但必须保留原作者的版权声明。</p>
+        </div>
+      </el-card>
+
+      <!-- 赞助模块 -->
+      <el-card class="info-card sponsor-card">
+        <template #header>
+          <div class="card-header">
+            <span>赞助开源</span>
+          </div>
+        </template>
+        <div class="sponsor-content">
+          <img src="../assets/aifadian.svg" alt="爱发电" class="sponsor-logo">
+          <p>如果觉得本项目对您有帮助，欢迎赞助支持作者持续开发！</p>
+          <a href="https://ifdian.net/a/xxgyyds" target="_blank" class="sponsor-btn">
+            <el-button type="primary" size="large" color="#946ce6" :dark="false">
+              前往爱发电赞助
+            </el-button>
+          </a>
         </div>
       </el-card>
     </div>
@@ -167,8 +188,9 @@ const copyScript = async (text) => {
 const checkUpdate = async () => {
   checking.value = true
   try {
-    // 调用后端代理接口检查更新
-    const res = await fetch('http://localhost:8080/api/monitor/check-update')
+    // 使用相对路径调用接口，避免跨域和混合内容问题
+    // 浏览器会自动使用当前页面的协议和域名
+    const res = await fetch('/api/monitor/check-update')
     if (!res.ok) throw new Error('检查更新失败')
     
     const data = await res.json()
@@ -218,6 +240,29 @@ const goToRepo = () => {
 .subtitle {
   color: #909399;
   font-size: 14px;
+}
+
+.sponsor-card {
+  border-color: #946ce6;
+}
+
+.sponsor-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 0;
+  gap: 15px;
+}
+
+.sponsor-logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 10px;
+}
+
+.sponsor-btn {
+  text-decoration: none;
 }
 
 .info-content {

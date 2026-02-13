@@ -101,6 +101,20 @@ public class CardController {
     }
 
     /**
+     * 删除卡密
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> deleteCard(@PathVariable Long id) {
+        try {
+            cardService.deleteCard(id);
+            return ResponseEntity.ok(Map.of("success", true, "message", "卡密删除成功"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
      * 使用卡密
      */
     @RequestMapping(value = "/use", method = {RequestMethod.POST, RequestMethod.GET})

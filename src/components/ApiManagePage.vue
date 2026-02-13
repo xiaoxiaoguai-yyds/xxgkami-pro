@@ -883,11 +883,27 @@ const generateCardCodes = async () => {
 }
 
 const deleteCardCode = async (cardId) => {
-  // Not implemented in backend yet, or use generic card delete?
-  // Current backend CardController doesn't seem to have delete individual card endpoint, only create.
-  // Assuming we can skip this or implement backend delete.
-  // For now, let's just show a message.
-  ElMessage.warning('暂不支持删除卡密')
+  try {
+    await ElMessageBox.confirm('确定要删除这个卡密吗？此操作不可恢复！', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    const result = await cardApi.deleteCard(cardId)
+    if (result.success) {
+      ElMessage.success('卡密删除成功')
+      // Refresh list
+      await fetchCardCodes(currentApiKey.value.id)
+    } else {
+      ElMessage.error(result.message || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除卡密失败:', error)
+      ElMessage.error(error.message || '删除失败')
+    }
+  }
 }
 
 const copyCardCode = (code) => {

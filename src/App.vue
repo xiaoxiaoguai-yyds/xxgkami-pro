@@ -242,6 +242,8 @@ onMounted(async () => {
   const oauthSuccess = await handleOAuthCallback()
   if (!oauthSuccess) {
     await checkLoginStatus()
+  } else {
+    loading.value = false
   }
   
   // 每30秒检查一次维护状态

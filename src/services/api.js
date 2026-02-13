@@ -514,6 +514,15 @@ export const cardApi = {
    */
   async getUserCards(userId) {
     return await apiRequest(`/cards/user/${userId}`);
+  },
+
+  /**
+   * 删除卡密
+   */
+  async deleteCard(cardId) {
+    return await apiRequest(`/cards/${cardId}`, {
+      method: 'DELETE'
+    });
   }
 };
 

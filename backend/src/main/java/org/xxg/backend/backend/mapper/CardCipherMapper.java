@@ -51,4 +51,9 @@ public class CardCipherMapper {
             return null;
         }
     }
+
+    public void deleteByCardHash(String cardHash) {
+        String sql = "DELETE FROM card_cipher WHERE card_hash = ?";
+        jdbcTemplate.update(sql, cardHash);
+    }
 }

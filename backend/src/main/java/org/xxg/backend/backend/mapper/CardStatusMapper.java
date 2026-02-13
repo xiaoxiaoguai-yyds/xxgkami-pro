@@ -59,4 +59,9 @@ public class CardStatusMapper {
         String sql = "UPDATE card_status SET remain_count = ?, last_use_time = ? WHERE card_hash = ?";
         jdbcTemplate.update(sql, newCount, Timestamp.valueOf(useTime), cardHash);
     }
+
+    public void deleteByCardHash(String cardHash) {
+        String sql = "DELETE FROM card_status WHERE card_hash = ?";
+        jdbcTemplate.update(sql, cardHash);
+    }
 }

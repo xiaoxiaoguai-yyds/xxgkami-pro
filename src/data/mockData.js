@@ -578,9 +578,9 @@ export const mockCreateKeys = (keyData) => {
 export const mockDeleteKey = (keyId) => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const index = mockKeysData.findIndex(key => key.id === keyId)
+      const index = mockCards.findIndex(key => key.id === keyId)
       if (index !== -1) {
-        mockKeysData.splice(index, 1)
+        mockCards.splice(index, 1)
         resolve({
           success: true,
           message: '卡密删除成功'

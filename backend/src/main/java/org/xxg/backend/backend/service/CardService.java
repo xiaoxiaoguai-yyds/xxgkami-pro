@@ -312,6 +312,19 @@ public class CardService {
         return cardMapper.findByApiKeyId(apiKeyId);
     }
 
+    @Transactional
+    public void deleteCard(Long id) {
+        // Find card to get encrypted_key (card_hash)
+        Card card = cardMapper.findById(id);
+        if (card != null && card.getEncryptedKey() != null) {
+            String cardHash = card.getEncryptedKey();
+            // Delete from related tables
+            cardStatusMapper.deleteByCardHash(cardHash);
+            cardCipherMapper.deleteByCardHash(cardHash);
+        }
+        cardMapper.delete(id);
+    }
+
     public List<Card> getAllCards() {
         return cardMapper.findAll();
     }
