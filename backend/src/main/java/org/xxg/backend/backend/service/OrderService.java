@@ -155,6 +155,7 @@ public class OrderService {
         // Update order
         order.setCardKeys(cardKeys);
         order.setStatus("completed");
+        order.setPayTime(LocalDateTime.now());
         orderMapper.update(order); // Assuming update method exists
         
         // Send notification

@@ -24,6 +24,16 @@ import org.xxg.backend.backend.dto.RegisterBindRequest;
 import org.xxg.backend.backend.entity.SocialUser;
 import org.xxg.backend.backend.mapper.SocialUserMapper;
 import io.jsonwebtoken.Claims;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 // ... (other imports)
 
@@ -39,6 +49,9 @@ public class AuthService {
     private final TotpService totpService;
     private final SettingsService settingsService;
     private final SocialUserMapper socialUserMapper;
+    
+    @Autowired(required = false)
+    private RedissonClient redissonClient;
 
     public AuthService(AdminMapper adminMapper, UserMapper userMapper, JwtUtil jwtUtil,
                        VerificationCodeMapper verificationCodeMapper, EmailService emailService, ApiKeyMapper apiKeyMapper,
@@ -98,8 +111,15 @@ public class AuthService {
         user.setRegisterIp("127.0.0.1"); // Placeholder
         
         userMapper.insertUser(user);
-        user = userMapper.findByUsername(request.getUsername()); // Retrieve ID
         
+        // Retrieve ID if not set (assuming insertUser might not set it, safe approach from garbage block)
+        if (user.getId() == null) {
+            User savedUser = userMapper.findByUsername(request.getUsername());
+            if (savedUser != null) {
+                user.setId(savedUser.getId());
+            }
+        }
+
         // Bind Social Account
         SocialUser socialUser = new SocialUser();
         socialUser.setUserId(user.getId());
@@ -132,6 +152,48 @@ public class AuthService {
         result.put("userInfo", user);
         
         return LoginResponse.success("注册并绑定成功", result);
+    }
+
+    /**
+     * 生成绑定App的临时Token
+     * Token 有效期 5 分钟
+     */
+    public String generateBindToken(Long userId) {
+        if (redissonClient == null) {
+            // 如果没有 Redis，返回简单的带时间戳的 Token，但不具备服务端失效能力
+            // 建议生产环境必须配置 Redis
+            return UUID.randomUUID().toString() + "_" + System.currentTimeMillis();
+        }
+        
+        String token = UUID.randomUUID().toString();
+        String key = "bind_token:" + userId;
+        
+        RBucket<String> bucket = redissonClient.getBucket(key);
+        // 设置 Token，有效期 5 分钟
+        // 每次生成都会覆盖旧值，从而使旧二维码失效
+        bucket.set(token, 5, TimeUnit.MINUTES);
+        
+        return token;
+    }
+    
+    /**
+     * 验证绑定 Token (供 App 调用接口使用)
+     */
+    public boolean validateBindToken(Long userId, String token) {
+        if (redissonClient == null) {
+            return true; // 无 Redis 模式下默认通过 (不安全)
+        }
+        
+        String key = "bind_token:" + userId;
+        RBucket<String> bucket = redissonClient.getBucket(key);
+        String storedToken = bucket.get();
+        
+        if (storedToken != null && storedToken.equals(token)) {
+            // 验证成功后立即删除，保证一次性使用
+            bucket.delete();
+            return true;
+        }
+        return false;
     }
     
     // ... (other methods)

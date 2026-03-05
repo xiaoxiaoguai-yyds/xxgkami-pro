@@ -5,6 +5,7 @@ import org.springframework.util.DigestUtils;
 import org.xxg.backend.backend.entity.Order;
 import org.xxg.backend.backend.mapper.OrderMapper;
 
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,10 +16,12 @@ import java.util.stream.Collectors;
 public class PaymentService {
 
     private final SettingsService settingsService;
+    private final OrderService orderService;
     private final OrderMapper orderMapper;
 
-    public PaymentService(SettingsService settingsService, OrderMapper orderMapper) {
+    public PaymentService(SettingsService settingsService, OrderService orderService, OrderMapper orderMapper) {
         this.settingsService = settingsService;
+        this.orderService = orderService;
         this.orderMapper = orderMapper;
     }
 
@@ -225,9 +228,9 @@ public class PaymentService {
         System.out.println("DEBUG: Notify Status: " + status + ", OrderNo: " + orderNo);
         
         if ("TRADE_SUCCESS".equals(status)) {
-            // Update order status
-            orderMapper.updateStatus(orderNo, "completed");
-            System.out.println("DEBUG: Order " + orderNo + " completed.");
+            // Use OrderService to complete order (generate cards, etc.)
+            orderService.completeOrder(orderNo);
+            System.out.println("DEBUG: Order " + orderNo + " completed via OrderService.");
         }
         
         return "success";

@@ -318,6 +318,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { settingsApi, maintenanceApi, authApi } from '../services/api.js'
+import { copyToClipboard as copyToClipboardUtil } from '../utils/clipboard.js'
 
 const props = defineProps({
   userInfo: Object
@@ -468,11 +469,10 @@ const backupApiUrl = computed(() => {
 })
 
 const copyToClipboard = async (text) => {
-  try {
-    await navigator.clipboard.writeText(text);
+  const success = await copyToClipboardUtil(text);
+  if (success) {
     showToast('链接已复制到剪贴板', 'success');
-  } catch (err) {
-    console.error('Failed to copy: ', err);
+  } else {
     showToast('复制失败，请手动复制', 'error');
   }
 }

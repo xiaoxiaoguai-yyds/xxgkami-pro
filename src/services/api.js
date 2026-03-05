@@ -300,6 +300,15 @@ export const authApi = {
   },
 
   /**
+   * 获取绑定Token
+   */
+  async getBindToken() {
+    return await apiRequest('/auth/bind/token', {
+      method: 'GET'
+    });
+  },
+
+  /**
    * 发送TOTP恢复验证码
    */
   async sendRecoveryCode(username) {

@@ -74,6 +74,10 @@
             <el-icon><User /></el-icon>
             <span>个人信息</span>
           </el-menu-item>
+          <el-menu-item index="settings">
+            <el-icon><Setting /></el-icon>
+            <span>系统设置</span>
+          </el-menu-item>
         </el-menu>
       </el-aside>
 
@@ -603,6 +607,11 @@
             </el-col>
           </el-row>
         </div>
+
+        <!-- 系统设置 -->
+        <div v-if="activeMenu === 'settings'" class="content-section">
+          <UserSettingsPage />
+        </div>
       </el-main>
     </el-container>
 
@@ -653,6 +662,10 @@
             <el-icon><User /></el-icon>
             <span>个人信息</span>
           </el-menu-item>
+          <el-menu-item index="settings">
+            <el-icon><Setting /></el-icon>
+            <span>系统设置</span>
+          </el-menu-item>
         </el-menu>
       </div>
     </el-drawer>
@@ -664,9 +677,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { mockCardPrices, mockPurchaseHistory, mockPurchaseCard } from '../data/mockData.js'
 import { userProfileApi, cardApi, pricingApi, orderApi, statsApi, paymentApi, settingsApi } from '../services/api.js'
+import UserSettingsPage from './UserSettingsPage.vue'
 
 export default {
   name: 'UserPage',
+  components: {
+    UserSettingsPage
+  },
   props: {
     userInfo: {
       type: Object,
@@ -1201,7 +1218,7 @@ export default {
     }
 
     const showSettings = () => {
-      ElMessage.info('设置功能开发中...')
+      activeMenu.value = 'settings'
     }
 
     const logout = () => {

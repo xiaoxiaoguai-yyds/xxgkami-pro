@@ -13,7 +13,9 @@ import org.xxg.backend.backend.dto.RegisterRequest;
 import org.xxg.backend.backend.dto.ResetPasswordRequest;
 import org.xxg.backend.backend.dto.TokenRefreshRequest;
 import org.xxg.backend.backend.service.AuthService;
+import org.xxg.backend.backend.service.SettingsService;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -22,6 +24,9 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private SettingsService settingsService;
 
     @PostMapping("/refresh")
     public LoginResponse refresh(@RequestBody TokenRefreshRequest request) {
@@ -232,6 +237,61 @@ public class AuthController {
             return LoginResponse.success("TOTP已关闭，请重新登录", null);
         } catch (Exception e) {
             return LoginResponse.error("操作失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/bind/token")
+    public LoginResponse getBindToken() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return LoginResponse.error("未登录");
+        }
+        
+        String username = authentication.getName();
+        String role = "user";
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            role = "admin";
+        }
+        
+        try {
+            Map<String, Object> data = authService.getUserInfo(username, role);
+            if (data != null && data.get("id") != null) {
+                Long userId = Long.valueOf(data.get("id").toString());
+                String token = authService.generateBindToken(userId);
+                String siteUrl = settingsService.getSetting("siteUrl");
+                if (siteUrl == null || siteUrl.isEmpty()) {
+                    siteUrl = ""; // Or some default value if needed
+                }
+                
+                Map<String, String> result = new HashMap<>();
+                result.put("token", token);
+                result.put("siteUrl", siteUrl);
+                return LoginResponse.success("获取成功", result);
+            }
+            return LoginResponse.error("用户不存在");
+        } catch (Exception e) {
+            return LoginResponse.error("获取失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/bind/validate")
+    public LoginResponse validateBindToken(@RequestBody Map<String, Object> request) {
+        if (request.get("userId") == null || request.get("token") == null) {
+            return LoginResponse.error("参数错误");
+        }
+        
+        try {
+            Long userId = Long.valueOf(request.get("userId").toString());
+            String token = (String) request.get("token");
+            boolean isValid = authService.validateBindToken(userId, token);
+            
+            if (isValid) {
+                return LoginResponse.success("验证成功", null);
+            } else {
+                return LoginResponse.error("验证失败或Token已过期");
+            }
+        } catch (Exception e) {
+            return LoginResponse.error("验证失败: " + e.getMessage());
         }
     }
 }

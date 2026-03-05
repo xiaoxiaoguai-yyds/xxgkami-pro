@@ -582,6 +582,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { apiKeyApi, cardApi } from '../services/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { copyToClipboard } from '../utils/clipboard.js'
 
 const props = defineProps({
   // apiKeys: Array, // No longer props, fetched internally
@@ -624,6 +625,8 @@ const interfaceConfig = reactive({
     { key: 'error', label: '其他错误', value: '500' }
   ]
 })
+
+
 
 // Helper to generate default URL
 const generateDefaultUrl = () => {
@@ -906,12 +909,13 @@ const deleteCardCode = async (cardId) => {
   }
 }
 
-const copyCardCode = (code) => {
-  navigator.clipboard.writeText(code).then(() => {
+const copyCardCode = async (code) => {
+  const success = await copyToClipboard(code)
+  if (success) {
     ElMessage.success('卡密已复制')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败')
-  })
+  }
 }
 
 // 简单的前端混淆实现，与后端 CustomCardObfuscator 保持一致
@@ -933,13 +937,14 @@ const obfuscateCardKey = (rawKey) => {
   }
 }
 
-const copyEncryptedCardCode = (code) => {
+const copyEncryptedCardCode = async (code) => {
   const encrypted = obfuscateCardKey(code)
-  navigator.clipboard.writeText(encrypted).then(() => {
+  const success = await copyToClipboard(encrypted)
+  if (success) {
     ElMessage.success('加密卡密已复制')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败')
-  })
+  }
 }
 
 const getCardCodeStatusText = (status) => {
@@ -1243,7 +1248,7 @@ const editApiKey = (apiKey) => {
   editingKey.name = apiKey.name
   editingKey.description = apiKey.description
   editingKey.enableCardEncryption = apiKey.enableCardEncryption
-  // editingKey.isActive = apiKey.isActive // If we want to edit status in modal
+  editingKey.isActive = apiKey.isActive // Preserve status when editing
   showEditModal.value = true
 }
 
@@ -1258,12 +1263,13 @@ const manageCardCodes = (apiKey) => {
   fetchCardCodes(apiKey.id)
 }
 
-const copyApiKey = (key) => {
-  navigator.clipboard.writeText(key).then(() => {
+const copyApiKey = async (key) => {
+  const success = await copyToClipboard(key)
+  if (success) {
     ElMessage.success('API密钥已复制')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败')
-  })
+  }
 }
 
 const formatDate = (date) => {
@@ -1397,15 +1403,16 @@ const previewResponseJson = computed(() => {
   return `{\n${entries.join(',\n')}\n}`
 })
 
-const copyPreviewUrl = () => {
+const copyPreviewUrl = async () => {
   const content = interfaceConfig.method === 'GET' ? previewUrl.value : previewPostParams.value
   if (!content) return
   
-  navigator.clipboard.writeText(content).then(() => {
+  const success = await copyToClipboard(content)
+  if (success) {
     ElMessage.success('内容已复制')
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败')
-  })
+  }
 }
 </script>
 

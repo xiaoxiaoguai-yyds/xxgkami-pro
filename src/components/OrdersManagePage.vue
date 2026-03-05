@@ -418,6 +418,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { orderApi } from '../services/api'
+import { copyToClipboard } from '../utils/clipboard.js'
 
 // 响应式数据
 const loading = ref(false)
@@ -612,10 +613,10 @@ const viewOrderDetail = (order) => {
 
 // 复制卡密
 const copyCardKey = async (key) => {
-  try {
-    await navigator.clipboard.writeText(key)
+  const success = await copyToClipboard(key)
+  if (success) {
     showToast('卡密已复制到剪贴板', 'success')
-  } catch (error) {
+  } else {
     showToast('复制失败', 'error')
   }
 }

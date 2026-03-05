@@ -341,6 +341,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
 import { cardApi } from '../services/api.js'
+import { copyToClipboard } from '../utils/clipboard.js'
 
 const props = defineProps({
   keys: Array
@@ -605,7 +606,13 @@ const getStatusClass = (status) => {
 }
 
 const createKeys = () => {
-  emit('create-keys', { ...newKey })
+  // Deep copy and clean data
+  const keyData = { ...newKey }
+  if (keyData.card_type === 'time') {
+    keyData.total_count = 0
+  }
+  
+  emit('create-keys', keyData)
   showCreateKeyModal.value = false
   // 重置表单
   newKey.card_type = 'time'
@@ -650,11 +657,10 @@ const deleteKey = (keyId) => {
 }
 
 const copyKey = async (cardKey) => {
-  try {
-    await navigator.clipboard.writeText(cardKey)
+  const success = await copyToClipboard(cardKey)
+  if (success) {
     ElMessage.success('卡密已复制到剪贴板')
-  } catch (err) {
-    console.error('Copy failed:', err)
+  } else {
     ElMessage.error('复制失败，请手动复制')
   }
 }

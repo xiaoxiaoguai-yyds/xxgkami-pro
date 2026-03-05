@@ -471,13 +471,11 @@ public class CardService {
                 throw new RuntimeException("卡密已过期");
             }
             
-            // Check if it is a time card BEFORE first count check
-            boolean isTimeCardPreCheck = false;
-            if (statusRecord.getExpireTime() != null && statusRecord.getExpireTime().getYear() < 2090) {
-                isTimeCardPreCheck = true;
-            }
+            // Check if it is a time card based on total count logic
+            // Consistent with createAdvancedCards: totalCount > 0 is "count", otherwise "time"
+            boolean isTimeCard = (statusRecord.getTotalCount() == null || statusRecord.getTotalCount() <= 0);
             
-            if (statusRecord.getRemainCount() <= 0 && !isTimeCardPreCheck) {
+            if (statusRecord.getRemainCount() <= 0 && !isTimeCard) {
                 throw new RuntimeException("卡密次数已用尽");
             }
             
@@ -496,111 +494,6 @@ public class CardService {
                 // Double Check
                 statusRecord = cardStatusMapper.findByCardHash(cardHash);
                 
-                // For Advanced Cards, we need to distinguish between Time and Count logic
-                // The current schema stores both duration/expireTime and totalCount/remainCount
-                
-                // If duration > 0, it's a Time card.
-                // Time cards logic:
-                // 1. If never used (remainCount == totalCount?), activate it (set expire time).
-                // 2. If already activated, check expiry.
-                // 3. BUT advanced card schema uses `card_status` table differently.
-                //    It has `remain_count`, `total_count`, `expire_time`
-                
-                // Let's refine the logic based on payload or DB state.
-                // Since we don't have explicit "cardType" in card_status, we infer from totalCount/duration passed during creation.
-                // During creation:
-                //   Time Card: totalCount = whatever (UI sends 0 or 1?), duration > 0. expireTime in payload set to now+duration? NO.
-                //   If Time Card, payload.expireTime is usually set to now+duration at creation time? 
-                //   Wait, if it's a duration card, it should start counting from FIRST USE, not creation.
-                //   Current creation logic:
-                //     if (duration > 0) payload.expireTime = now.plusDays(duration)... -> This sets expiry from CREATION time.
-                //     This effectively makes it a "subscription valid until X" card, not "X days from first use".
-                
-                // If user wants "X days from first use", we need to store duration and activate on first use.
-                // However, current advanced creation logic sets hard expiry in payload.
-                //   if (duration > 0) payload.expireTime = now.plusDays(duration)...
-                
-                // And verification logic checks:
-                //   if (payload.expireTime != null && now > payload.expireTime) -> Expired.
-                
-                // Issue: User says "Time Card" but error is "Count exhausted".
-                // Error "卡密次数已用尽" comes from:
-                //   if (statusRecord.getRemainCount() <= 0)
-                
-                // So for Time Cards, we must ensure RemainCount is not 0, or we ignore RemainCount if it's purely time-based.
-                // But `useAdvancedCard` decrements count:
-                //   int newCount = statusRecord.getRemainCount() - 1;
-                //   cardStatusMapper.updateUsage(..., newCount, ...);
-                
-                // FIX:
-                // If it is a time card (implied by duration/expireTime logic?), we shouldn't decrement count OR count should be large/irrelevant.
-                // But wait, "Time Card" usually implies "Unlimited uses within duration" OR "One-time activation for duration".
-                // In this system's main logic (useCard), Time Card = "Activate on first use, then valid until expiry".
-                // And `useCard` updates `card.status=1` (activated).
-                
-                // For Advanced Card:
-                // We rely on `card_status` table.
-                // If we want "Unlimited uses within validity", we should NOT decrement count to 0.
-                // OR we check if it's a time card.
-                
-                // How to know if it's a time card in `useAdvancedCard`?
-                // 1. Check if payload has specific flag? No.
-                // 2. Check DB status?
-                //    We have `statusRecord.getTotalCount()`.
-                //    If created as Time Card, totalCount might be 0? 
-                //    Let's check `createAdvancedCards`:
-                //      card.setCardType(totalCount > 0 ? "count" : "time");
-                //      So if totalCount > 0, it's Count card. If 0, Time card.
-                //      BUT `createAdvancedCards` sets `payload.totalCount = totalCount`.
-                
-                // User input: "Total Count" field in UI is likely 1 or 0 for Time Card?
-                // If UI sends total_count=100 (default in KeysManagePage), then it's a count card?
-                // Wait, `KeysManagePage` logic:
-                //   newKey.card_type = 'time'
-                //   newKey.duration = 30
-                //   newKey.total_count = 100 (Default!)
-                
-                // So frontend sends both duration=30 AND total_count=100.
-                // Backend `createAdvancedCards` uses both.
-                // It sets expiry to now+30 days.
-                // It sets count to 100.
-                
-                // So it acts as: "Valid for 30 days from CREATION, AND limited to 100 uses".
-                
-                // User says: "Error: Count exhausted".
-                // This means `remainCount` hit 0.
-                // If it's a new card, remainCount should be 100.
-                // Why is it 0?
-                // Maybe user set "Gen Quantity" to 1, "Total Count" to 1?
-                // If user uses it once, count becomes 0.
-                // Then second use -> "Count exhausted".
-                
-                // If it's a TIME card (Duration > 0), we usually expect unlimited uses (or verify-only) within that time.
-                // Logic change:
-                // If statusRecord.getExpireTime() is set (implies Time limit), we should ALLOW use even if count is 0?
-                // OR we should not decrement count?
-                
-                // Let's look at `useCard` (legacy) logic for Time cards:
-                //   if ("time".equals(cardType)) {
-                //      ... check expiry ...
-                //      (Does NOT decrement count)
-                //   }
-                
-                // So `useAdvancedCard` needs similar branching.
-                // But `card_status` doesn't explicitly store "type".
-                // We can infer: if `expireTime` is "reasonable" (not 100 years), treat as Time Card?
-                // `createAdvancedCards`:
-                //    if (duration > 0) expire = now + duration
-                //    else expire = now + 100 years.
-                
-                // So if expireTime < now + 50 years, it's likely a Time Card.
-                // Let's use a safe threshold, e.g., year 2100.
-                
-                boolean isTimeCard = false;
-                if (statusRecord.getExpireTime() != null && statusRecord.getExpireTime().getYear() < 2090) {
-                    isTimeCard = true;
-                }
-                
                 if (statusRecord.getRemainCount() <= 0 && !isTimeCard) {
                     throw new RuntimeException("卡密次数已用尽");
                 }
@@ -611,8 +504,6 @@ public class CardService {
                     cardStatusMapper.updateUsage(cardHash, newCount, LocalDateTime.now());
                 } else {
                     // For time cards, just update use time, don't decrement count
-                    // But wait, if we don't decrement, `updateUsage` might not be called?
-                    // We should still update use_time.
                      cardStatusMapper.updateUsage(cardHash, newCount, LocalDateTime.now());
                 }
                 
@@ -641,6 +532,7 @@ public class CardService {
                 
                 if (isTimeCard) {
                     card.setStatus(1); // Mark as Used/Active
+                    card.setExpireTime(statusRecord.getExpireTime()); // Set expire time for display
                 } else {
                     // Count Card: if used at least once (remain < total), mark as Used (1)
                     // even if not exhausted.
