@@ -450,8 +450,14 @@ public class AuthService {
     public void register(RegisterRequest request) {
         // Verify code
         VerificationCode vc = verificationCodeMapper.findLatestByEmailAndType(request.getEmail(), "register");
-        if (vc == null || vc.getExpireTime().isBefore(LocalDateTime.now()) || !vc.getCode().equals(request.getCode())) {
-            throw new RuntimeException("验证码无效或已过期");
+        if (vc == null) {
+            throw new RuntimeException("验证码无效或不存在");
+        }
+        if (vc.getExpireTime().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("验证码已过期");
+        }
+        if (!vc.getCode().equals(request.getCode())) {
+            throw new RuntimeException("验证码错误");
         }
 
         // Check username existence

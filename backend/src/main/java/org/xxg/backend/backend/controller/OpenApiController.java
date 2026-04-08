@@ -30,7 +30,7 @@ public class OpenApiController {
      * 处理卡密使用逻辑
      */
     private ResponseEntity<Map<String, Object>> executeUseCard(
-            String apiKey, String cardKey, String deviceId, String ipAddress, HttpServletRequest request
+            String apiKey, String cardKey, String deviceId, String ipAddress, String machineCode, HttpServletRequest request
     ) {
         // Default IP if not provided
         if (ipAddress == null || ipAddress.isEmpty()) {
@@ -88,7 +88,7 @@ public class OpenApiController {
 
         // 3. Use Card
         try {
-            cardService.useCard(cardKey, deviceId, ipAddress, keyEntity.getId());
+            cardService.useCard(cardKey, deviceId, ipAddress, keyEntity.getId(), machineCode);
             
             // 4. Update API Key Usage
             apiKeyService.updateUsage(keyEntity.getId());
@@ -118,6 +118,7 @@ public class OpenApiController {
             jsonBody.get("card_key"),
             jsonBody.get("device_id"),
             jsonBody.get("ip_address"),
+            jsonBody.get("machine_code"),
             request
         );
     }
@@ -131,8 +132,9 @@ public class OpenApiController {
             @RequestParam(value = "api_key", required = false) String apiKey,
             @RequestParam(value = "card_key", required = false) String cardKey,
             @RequestParam(value = "device_id", required = false) String deviceId,
-            @RequestParam(value = "ip_address", required = false) String ipAddress
+            @RequestParam(value = "ip_address", required = false) String ipAddress,
+            @RequestParam(value = "machine_code", required = false) String machineCode
     ) {
-        return executeUseCard(apiKey, cardKey, deviceId, ipAddress, request);
+        return executeUseCard(apiKey, cardKey, deviceId, ipAddress, machineCode, request);
     }
 }

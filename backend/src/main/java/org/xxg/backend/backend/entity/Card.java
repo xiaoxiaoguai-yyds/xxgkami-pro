@@ -15,7 +15,7 @@ public class Card {
     @JsonProperty("encrypted_key")
     private String encryptedKey;
     
-    private Integer status; // 0:未使用 1:已使用 2:已停用
+    private Integer status; // 0:未使用 1:已使用 2:已暂停(管理员)
     
     @JsonProperty("create_time")
     private LocalDateTime createTime;
@@ -63,6 +63,9 @@ public class Card {
 
     @JsonProperty("api_key_id")
     private Long apiKeyId;
+
+    @JsonProperty("machine_code")
+    private String machineCode;
 
     // Getters and Setters
     public Long getId() { return id; }
@@ -124,4 +127,7 @@ public class Card {
 
     public Long getApiKeyId() { return apiKeyId; }
     public void setApiKeyId(Long apiKeyId) { this.apiKeyId = apiKeyId; }
+
+    public String getMachineCode() { return machineCode; }
+    public void setMachineCode(String machineCode) { this.machineCode = machineCode; }
 }

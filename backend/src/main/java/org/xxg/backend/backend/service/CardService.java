@@ -80,66 +80,76 @@ public class CardService {
      * @return 更新后的Card对象
      */
     @Transactional
-    public Card useCard(String cardKey, String deviceId, String ipAddress, Long apiKeyId) {
+    public Card useCard(String cardKey, String deviceId, String ipAddress, Long apiKeyId, String machineCode) {
         // Advanced Card Check
         if (cardKey != null && cardKey.contains("$")) {
-             return useAdvancedCard(cardKey, deviceId, ipAddress, apiKeyId);
+             return useAdvancedCard(cardKey, deviceId, ipAddress, apiKeyId, machineCode);
         }
-        
+
         Card card = cardMapper.findByCardKey(cardKey);
         if (card == null) {
             throw new RuntimeException("卡密不存在");
         }
-        
+
         // Verify API Key binding
         if (card.getApiKeyId() != null) {
             if (apiKeyId == null || !card.getApiKeyId().equals(apiKeyId)) {
                 throw new RuntimeException("该卡密为专属卡密，当前API密钥无法使用");
             }
         }
-        
-        if (card.getStatus() == 2) { // 2 is typically "disabled"
-            throw new RuntimeException("卡密已停用");
+
+        if (card.getStatus() != null && card.getStatus() == 2) {
+            boolean wasActivated = card.getUseTime() != null;
+            throw new RuntimeException(wasActivated ? "卡密被停止使用" : "卡密已停用");
         }
+
+        // 一机一码校验
+        verifyMachineCode(card, machineCode);
 
         LocalDateTime now = LocalDateTime.now();
         boolean isUpdated = false;
 
         if ("time".equals(card.getCardType())) {
             if (card.getStatus() != 0) {
-                // Already activated
                 if (card.getExpireTime() != null && card.getExpireTime().isBefore(now)) {
                     throw new RuntimeException("卡密已过期");
                 }
-                // If we want to prevent re-use on different device, check here.
-                // For now, allow valid time cards to pass "use" check.
+                if (card.getAllowReverify() != null && card.getAllowReverify() == 0) {
+                    throw new RuntimeException("该卡密不允许重复验证，验证次数已达上限(1次)");
+                }
             } else {
-                // First use, activate
                 card.setUseTime(now);
                 card.setExpireTime(now.plusDays(card.getDuration()));
-                card.setStatus(1); // Activated
+                card.setStatus(1);
                 card.setDeviceId(deviceId);
                 card.setIpAddress(ipAddress);
+                // 首次激活时绑定机器码
+                if (machineCode != null && !machineCode.isEmpty()) {
+                    card.setMachineCode(machineCode);
+                }
                 isUpdated = true;
             }
         } else {
-            // Count card
             if (card.getStatus() == 1 || (card.getRemainingCount() != null && card.getRemainingCount() <= 0)) {
                  throw new RuntimeException("卡密次数已用尽");
             }
-            
+
             int currentRemaining = card.getRemainingCount() != null ? card.getRemainingCount() : card.getTotalCount();
             if (currentRemaining <= 0) {
                  throw new RuntimeException("卡密次数已用尽");
             }
-            
+
             card.setRemainingCount(currentRemaining - 1);
             card.setUseTime(now);
             card.setDeviceId(deviceId);
             card.setIpAddress(ipAddress);
-            
+            // 首次使用时绑定机器码
+            if (card.getMachineCode() == null && machineCode != null && !machineCode.isEmpty()) {
+                card.setMachineCode(machineCode);
+            }
+
             if (card.getRemainingCount() <= 0) {
-                card.setStatus(1); // Exhausted
+                card.setStatus(1);
             }
             isUpdated = true;
         }
@@ -147,8 +157,7 @@ public class CardService {
         if (isUpdated) {
             cardMapper.update(card);
         }
-        
-        // Trigger Webhook if apiKeyId is present
+
         if (apiKeyId != null) {
             org.xxg.backend.backend.entity.ApiKey apiKey = apiKeyMapper.findById(apiKeyId);
             if (apiKey != null) {
@@ -156,7 +165,6 @@ public class CardService {
             }
         }
 
-        // Send notification (only on first activation or specific logic? keeping original logic)
         try {
             Order order = orderMapper.findByCardKey(cardKey);
             if (order != null && order.getUserId() != null) {
@@ -169,13 +177,33 @@ public class CardService {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
+
         return card;
     }
 
     @Transactional
+    public Card useCard(String cardKey, String deviceId, String ipAddress, Long apiKeyId) {
+        return useCard(cardKey, deviceId, ipAddress, apiKeyId, null);
+    }
+
+    @Transactional
     public Card useCard(String cardKey, String deviceId, String ipAddress) {
-        return useCard(cardKey, deviceId, ipAddress, null);
+        return useCard(cardKey, deviceId, ipAddress, null, null);
+    }
+
+    /**
+     * 一机一码校验：卡密已绑定机器码时，传入的机器码必须匹配
+     */
+    private void verifyMachineCode(Card card, String machineCode) {
+        if (card.getMachineCode() == null || card.getMachineCode().isEmpty()) {
+            return;
+        }
+        if (machineCode == null || machineCode.isEmpty()) {
+            throw new RuntimeException("该卡密已绑定机器，请提供机器码");
+        }
+        if (!card.getMachineCode().equals(machineCode)) {
+            throw new RuntimeException("机器码不匹配，该卡密已绑定其他设备");
+        }
     }
 
     /**
@@ -204,8 +232,10 @@ public class CardService {
         if (cardKeys.isEmpty()) {
             return new ArrayList<>();
         }
-        
-        return cardMapper.findByCardKeys(cardKeys);
+
+        List<Card> list = cardMapper.findByCardKeys(cardKeys);
+        enrichAdvancedTimeCardExpireFromStatus(list);
+        return list;
     }
 
     /**
@@ -227,7 +257,7 @@ public class CardService {
                                  String creatorType, Long creatorId, String creatorName, Long apiKeyId) {
         
         if ("advanced".equalsIgnoreCase(encryptionType)) {
-            return createAdvancedCards(count, totalCount, duration, creatorId, creatorType, creatorName, apiKeyId);
+            return createAdvancedCards(count, totalCount, duration, allowReverify, creatorId, creatorType, creatorName, apiKeyId);
         }
                                      
         List<Card> cards = new ArrayList<>();
@@ -305,11 +335,12 @@ public class CardService {
     }
 
     /**
-     * 获取所有卡密
-     * @return 卡密列表
+     * 获取指定 API Key 下的卡密
      */
     public List<Card> getCardsByApiKey(Long apiKeyId) {
-        return cardMapper.findByApiKeyId(apiKeyId);
+        List<Card> list = cardMapper.findByApiKeyId(apiKeyId);
+        enrichAdvancedTimeCardExpireFromStatus(list);
+        return list;
     }
 
     @Transactional
@@ -326,10 +357,128 @@ public class CardService {
     }
 
     public List<Card> getAllCards() {
-        return cardMapper.findAll();
+        List<Card> list = cardMapper.findAll();
+        enrichAdvancedTimeCardExpireFromStatus(list);
+        return list;
     }
 
-    private List<Card> createAdvancedCards(int count, int totalCount, int duration, Long creatorId, String creatorType, String creatorName, Long apiKeyId) {
+    /**
+     * 高级时间卡在核销时曾未把 card_status.expire_time 同步到 cards.expire_time，列表会误显「未激活」。
+     * 从 card_status 补全内存中的过期时间（并尽量回写主表一行，修复历史脏数据）。
+     */
+    private void enrichAdvancedTimeCardExpireFromStatus(List<Card> cards) {
+        if (cards == null || cards.isEmpty()) {
+            return;
+        }
+        for (Card c : cards) {
+            if (c.getEncryptionType() == null || !"advanced".equalsIgnoreCase(c.getEncryptionType())) {
+                continue;
+            }
+            if (!"time".equals(c.getCardType())) {
+                continue;
+            }
+            if (c.getEncryptedKey() == null || c.getEncryptedKey().isEmpty()) {
+                continue;
+            }
+            if (c.getExpireTime() != null) {
+                continue;
+            }
+            try {
+                CardStatus st = cardStatusMapper.findByCardHash(c.getEncryptedKey());
+                if (st != null && st.getExpireTime() != null) {
+                    c.setExpireTime(st.getExpireTime());
+                    try {
+                        cardMapper.updateExpireTimeByHash(c.getEncryptedKey(), st.getExpireTime());
+                    } catch (Exception ignored) {
+                        // 列表展示已正确；回写失败不影响
+                    }
+                }
+            } catch (Exception ignored) {
+                // ignore per-row
+            }
+        }
+    }
+
+    /**
+     * 管理员编辑卡密（含机器码重置、持续时间、次数等）
+     */
+    @Transactional
+    public void adminUpdateCard(Long id, Map<String, Object> body) {
+        Card card = cardMapper.findById(id);
+        if (card == null) {
+            throw new RuntimeException("卡密不存在");
+        }
+
+        if (body.containsKey("machine_code")) {
+            Object mc = body.get("machine_code");
+            card.setMachineCode(mc == null || mc.toString().isEmpty() ? null : mc.toString());
+        }
+        if (body.containsKey("duration")) {
+            card.setDuration(Integer.parseInt(body.get("duration").toString()));
+        }
+        if (body.containsKey("total_count")) {
+            card.setTotalCount(Integer.parseInt(body.get("total_count").toString()));
+        }
+        if (body.containsKey("remaining_count")) {
+            card.setRemainingCount(Integer.parseInt(body.get("remaining_count").toString()));
+        }
+        if (body.containsKey("allow_reverify")) {
+            card.setAllowReverify(Integer.parseInt(body.get("allow_reverify").toString()));
+        }
+
+        cardMapper.update(card);
+    }
+
+    /**
+     * 管理员暂停(2)或恢复启用(请求体为 1：恢复为未使用 0 或已使用 1)
+     */
+    @Transactional
+    public String updateAdminCardStatus(Long id, int targetStatus) {
+        Card card = cardMapper.findById(id);
+        if (card == null) {
+            throw new RuntimeException("卡密不存在");
+        }
+        boolean advanced = card.getEncryptionType() != null && "advanced".equalsIgnoreCase(card.getEncryptionType());
+        String hash = card.getEncryptedKey();
+
+        if (targetStatus == 2) {
+            if (Integer.valueOf(2).equals(card.getStatus())) {
+                return "卡密已处于暂停状态";
+            }
+            boolean pausedAfterUse = Integer.valueOf(1).equals(card.getStatus()) || card.getUseTime() != null;
+            cardMapper.updateStatusOnly(id, 2);
+            if (advanced && hash != null) {
+                try {
+                    cardStatusMapper.updateIsValid(hash, 0);
+                } catch (Exception e) {
+                    // card_status 可能不存在，忽略
+                }
+            }
+            return pausedAfterUse
+                    ? "卡密已暂停；该卡密此前已激活，用户校验时将提示「卡密被停止使用」"
+                    : "卡密已暂停";
+        }
+
+        if (targetStatus == 1) {
+            if (!Integer.valueOf(2).equals(card.getStatus())) {
+                throw new RuntimeException("仅暂停状态的卡密可恢复启用");
+            }
+            int restored = card.getUseTime() != null ? 1 : 0;
+            cardMapper.updateStatusOnly(id, restored);
+            if (advanced && hash != null) {
+                try {
+                    cardStatusMapper.updateIsValid(hash, 1);
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+            return "卡密已恢复启用";
+        }
+
+        throw new RuntimeException("不支持的状态操作");
+    }
+
+    private List<Card> createAdvancedCards(int count, int totalCount, int duration, int allowReverify, Long creatorId, String creatorType, String creatorName, Long apiKeyId) {
         List<Card> result = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         
@@ -338,10 +487,12 @@ public class CardService {
                 // 1. Prepare Payload
                 CardPayload payload = new CardPayload();
                 payload.cardId = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", ""); // 64 chars
+                // 时间卡密过期时间由首次核销时动态计算，payload 仅作兜底上限
+                // 设置为 duration 的 2 倍以确保首次核销不被 payload 校验拦截
                 if (duration > 0) {
-                     payload.expireTime = now.plusDays(duration).atZone(java.time.ZoneId.systemDefault()).toEpochSecond();
+                     payload.expireTime = now.plusDays((long) duration * 2).atZone(java.time.ZoneId.systemDefault()).toEpochSecond();
                 } else {
-                     payload.expireTime = now.plusYears(100).atZone(java.time.ZoneId.systemDefault()).toEpochSecond(); // No expiry effectively
+                     payload.expireTime = now.plusYears(100).atZone(java.time.ZoneId.systemDefault()).toEpochSecond();
                 }
                 payload.totalCount = totalCount;
                 payload.nonce = advancedCryptoUtil.generateNonce();
@@ -375,9 +526,7 @@ public class CardService {
                 status.setCardHash(cardHash);
                 status.setRemainCount(totalCount);
                 status.setTotalCount(totalCount);
-                if (duration > 0) {
-                    status.setExpireTime(now.plusDays(duration));
-                }
+                // 时间卡密不在创建时设置过期时间，而是在首次核销时按 duration 计算
                 status.setIsValid(1);
                 cardStatusMapper.insert(status);
                 
@@ -392,8 +541,8 @@ public class CardService {
                 card.setCreateTime(now);
                 card.setStatus(0);
                 card.setEncryptionType("advanced");
-                card.setVerifyMethod("web"); // Default
-                card.setAllowReverify(1);
+                card.setVerifyMethod("web");
+                card.setAllowReverify(allowReverify);
                 card.setCreatorId(creatorId);
                 card.setCreatorType(creatorType);
                 card.setCreatorName(creatorName);
@@ -412,7 +561,7 @@ public class CardService {
         return result;
     }
 
-    private Card useAdvancedCard(String fullKey, String deviceId, String ipAddress, Long apiKeyId) {
+    private Card useAdvancedCard(String fullKey, String deviceId, String ipAddress, Long apiKeyId, String machineCode) {
         try {
             // Check for spaces and replace with + if necessary (common URL decoding issue)
             if (fullKey.contains(" ")) {
@@ -452,15 +601,28 @@ public class CardService {
                      throw new RuntimeException("该卡密为专属卡密，当前API密钥无法使用");
                  }
             }
-            
+
+            // 一机一码校验（高级卡密）
+            if (cardMetadata != null) {
+                verifyMachineCode(cardMetadata, machineCode);
+            }
+
             CardStatus statusRecord = cardStatusMapper.findByCardHash(cardHash);
             
             if (statusRecord == null) {
                 throw new RuntimeException("卡密不存在或伪造");
             }
-            
-            if (statusRecord.getIsValid() == 0) {
-                throw new RuntimeException("卡密已停用");
+
+            if (cardMetadata != null && Integer.valueOf(2).equals(cardMetadata.getStatus())) {
+                boolean wasActivated = cardMetadata.getUseTime() != null
+                        || (statusRecord.getLastUseTime() != null);
+                throw new RuntimeException(wasActivated ? "卡密被停止使用" : "卡密已停用");
+            }
+
+            if (statusRecord.getIsValid() != null && statusRecord.getIsValid() == 0) {
+                boolean wasActivated = (cardMetadata != null && cardMetadata.getUseTime() != null)
+                        || (statusRecord.getLastUseTime() != null);
+                throw new RuntimeException(wasActivated ? "卡密被停止使用" : "卡密已停用");
             }
             
             if (payload.expireTime != null && System.currentTimeMillis() / 1000 > payload.expireTime) {
@@ -471,10 +633,15 @@ public class CardService {
                 throw new RuntimeException("卡密已过期");
             }
             
-            // Check if it is a time card based on total count logic
-            // Consistent with createAdvancedCards: totalCount > 0 is "count", otherwise "time"
             boolean isTimeCard = (statusRecord.getTotalCount() == null || statusRecord.getTotalCount() <= 0);
-            
+
+            // 高级时间卡：不允许重复验证时，已激活则拒绝
+            if (isTimeCard && cardMetadata != null
+                    && cardMetadata.getAllowReverify() != null && cardMetadata.getAllowReverify() == 0
+                    && statusRecord.getLastUseTime() != null) {
+                throw new RuntimeException("该卡密不允许重复验证，验证次数已达上限(1次)");
+            }
+
             if (statusRecord.getRemainCount() <= 0 && !isTimeCard) {
                 throw new RuntimeException("卡密次数已用尽");
             }
@@ -499,56 +666,48 @@ public class CardService {
                 }
                 
                 int newCount = statusRecord.getRemainCount();
+                LocalDateTime activatedExpire = statusRecord.getExpireTime();
+
                 if (!isTimeCard) {
                     newCount = newCount - 1;
                     cardStatusMapper.updateUsage(cardHash, newCount, LocalDateTime.now());
                 } else {
-                    // For time cards, just update use time, don't decrement count
-                     cardStatusMapper.updateUsage(cardHash, newCount, LocalDateTime.now());
+                    // 时间卡首次激活：此前 expire_time 为空，现在根据 duration 计算并写入
+                    if (activatedExpire == null && cardMetadata != null && cardMetadata.getDuration() != null && cardMetadata.getDuration() > 0) {
+                        activatedExpire = LocalDateTime.now().plusDays(cardMetadata.getDuration());
+                        cardStatusMapper.activateExpireTime(cardHash, activatedExpire);
+                    }
+                    cardStatusMapper.updateUsage(cardHash, newCount, LocalDateTime.now());
                 }
-                
-                // Return result
+
+                // 首次使用时绑定机器码（高级卡密）
+                String boundMachineCode = (cardMetadata != null) ? cardMetadata.getMachineCode() : null;
+                if (boundMachineCode == null && machineCode != null && !machineCode.isEmpty()) {
+                    boundMachineCode = machineCode;
+                }
+
                 Card card = new Card();
                 card.setId(statusRecord.getId());
                 card.setCardKey(fullKey);
                 card.setRemainingCount(newCount);
                 card.setTotalCount(statusRecord.getTotalCount());
-                card.setStatus(newCount > 0 ? 0 : 1);
-                // Fix Status for Time Card: always 0 (valid) if not expired
-                // BUT wait, if it's a time card and ACTIVATED, we usually want to show it as "Active/Used" in UI?
-                // Standard logic: 0=Unused, 1=Active/Used, 2=Disabled.
-                // If we return 0, UI shows "Unused".
-                // If we return 1, UI shows "Used".
-                // User complaint: "Displayed as Unused after use".
-                // So we MUST return 1 if it has been used/activated.
-                
-                // Logic update:
-                // If it is a time card:
-                //   If use_time is set (which we just set), it implies it's activated.
-                //   So status should be 1.
-                //   BUT verify logic might block status=1?
-                //   Legacy verify: if ("time".equals(type) && status != 0) -> check expiry. -> OK.
-                //   So setting status=1 is safe and correct for "Used/Active" state.
-                
+                card.setMachineCode(boundMachineCode);
+
                 if (isTimeCard) {
-                    card.setStatus(1); // Mark as Used/Active
-                    card.setExpireTime(statusRecord.getExpireTime()); // Set expire time for display
+                    card.setStatus(1);
+                    card.setExpireTime(activatedExpire);
                 } else {
-                    // Count Card: if used at least once (remain < total), mark as Used (1)
-                    // even if not exhausted.
-                    if (newCount < statusRecord.getTotalCount()) {
-                         card.setStatus(1);
-                    }
+                    card.setStatus(newCount <= 0 ? 1 : (newCount < statusRecord.getTotalCount() ? 1 : 0));
                 }
-                
+
                 card.setCardType(isTimeCard ? "time" : "count");
                 card.setUseTime(LocalDateTime.now());
-                
-                // Also update main cards table status for visibility
+
+                // 同步主表（时间卡带 expire_time + 机器码）
                 try {
-                     cardMapper.updateUsageByHash(cardHash, LocalDateTime.now(), card.getStatus(), newCount);
+                    LocalDateTime syncExpire = isTimeCard ? activatedExpire : null;
+                    cardMapper.updateUsageByHash(cardHash, LocalDateTime.now(), card.getStatus(), newCount, syncExpire, boundMachineCode);
                 } catch (Exception ex) {
-                    // Ignore sync error, core logic is safe
                     ex.printStackTrace();
                 }
                 

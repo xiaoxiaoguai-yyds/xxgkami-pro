@@ -64,4 +64,15 @@ public class CardStatusMapper {
         String sql = "DELETE FROM card_status WHERE card_hash = ?";
         jdbcTemplate.update(sql, cardHash);
     }
+
+    public void updateIsValid(String cardHash, int isValid) {
+        String sql = "UPDATE card_status SET is_valid = ? WHERE card_hash = ?";
+        jdbcTemplate.update(sql, isValid, cardHash);
+    }
+
+    /** 首次激活时间卡时写入 expire_time */
+    public void activateExpireTime(String cardHash, java.time.LocalDateTime expireTime) {
+        String sql = "UPDATE card_status SET expire_time = ? WHERE card_hash = ?";
+        jdbcTemplate.update(sql, Timestamp.valueOf(expireTime), cardHash);
+    }
 }

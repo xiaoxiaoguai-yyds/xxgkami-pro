@@ -22,8 +22,9 @@
             <th>卡密</th>
             <th>类型</th>
             <th>状态</th>
+            <th>机器码</th>
             <th>创建时间</th>
-            <th>持续时间/剩余次数</th>
+            <th>剩余时间/剩余次数</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -43,8 +44,23 @@
                 {{ getStatusText(key.status) }}
               </span>
             </td>
+            <td class="machine-code-cell" :title="key.machine_code || ''">
+              <span v-if="key.machine_code" class="machine-code-tag">{{ key.machine_code }}</span>
+              <span v-else class="machine-code-empty">未绑定</span>
+            </td>
             <td>{{ formatDate(key.create_time) }}</td>
-            <td>{{ key.card_type === 'time' ? key.duration + '天' : key.remaining_count + '次' }}</td>
+            <td class="duration-cell">
+              <template v-if="key.card_type === 'time'">
+                <span
+                  v-if="key.expire_time"
+                  :class="['time-countdown', { 'is-expired': isTimeCardExpired(key) }]"
+                >
+                  {{ formatTimeCardRemaining(key) }}
+                </span>
+                <span v-else class="time-spec">{{ (key.duration ?? 0) }} 天（未激活）</span>
+              </template>
+              <template v-else>{{ key.remaining_count }} 次</template>
+            </td>
             <td>
               <div class="action-buttons">
                 <button class="btn-secondary btn-sm" @click="copyKey(key.card_key)">
@@ -269,12 +285,35 @@
               <option value="2">已停用</option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group" v-if="editingKey.card_type === 'time'">
             <label>允许重复验证</label>
             <select v-model="editingKey.allow_reverify">
               <option value="1">允许</option>
               <option value="0">不允许</option>
             </select>
+            <small class="form-hint" v-if="editingKey.allow_reverify == 0">关闭后，时间卡密激活一次即不可再次验证</small>
+            <small class="form-hint" v-else>开启后，时间卡密在有效期内可无限次验证</small>
+          </div>
+          <div class="form-group">
+            <label>机器码</label>
+            <div class="machine-code-edit">
+              <input
+                type="text"
+                :value="editingKey.machine_code || ''"
+                readonly
+                class="readonly-input"
+                :placeholder="editingKey.machine_code ? '' : '未绑定'"
+              />
+              <button
+                v-if="editingKey.machine_code"
+                class="btn-danger btn-sm"
+                @click="editingKey.machine_code = ''"
+                title="重置机器码"
+              >
+                <i class="fas fa-undo"></i> 重置
+              </button>
+              <span v-else class="machine-code-hint">未绑定，无需重置</span>
+            </div>
           </div>
         </div>
         <div class="modal-actions">
@@ -316,12 +355,14 @@
             <label>总次数</label>
             <input type="number" v-model="newKey.total_count" min="1" max="10000" />
           </div>
-          <div class="form-group">
+          <div class="form-group" v-if="newKey.card_type === 'time'">
             <label>允许重复验证</label>
             <select v-model="newKey.allow_reverify">
               <option value="1">允许</option>
               <option value="0">不允许</option>
             </select>
+            <small class="form-hint" v-if="newKey.allow_reverify == 0">关闭后，时间卡密激活一次即不可再次验证</small>
+            <small class="form-hint" v-else>开启后，时间卡密在有效期内可无限次验证</small>
           </div>
         </div>
         <div class="modal-actions">
@@ -337,7 +378,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
 import { cardApi } from '../services/api.js'
@@ -348,6 +389,53 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['create-keys', 'delete-key', 'update-key', 'toggle-key-status'])
+
+/** 每秒刷新，驱动时间卡密倒计时 */
+const nowMs = ref(Date.now())
+let countdownTimer = null
+
+onMounted(() => {
+  countdownTimer = setInterval(() => {
+    nowMs.value = Date.now()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+})
+
+const pad2 = (n) => String(n).padStart(2, '0')
+
+const parseExpireTimeMs = (key) => {
+  const raw = key?.expire_time
+  if (raw == null || raw === '') return null
+  const t = new Date(raw).getTime()
+  return Number.isFinite(t) ? t : null
+}
+
+const isTimeCardExpired = (key) => {
+  const end = parseExpireTimeMs(key)
+  return end != null && end <= nowMs.value
+}
+
+const formatTimeCardRemaining = (key) => {
+  const end = parseExpireTimeMs(key)
+  if (end == null) return '—'
+  const ms = end - nowMs.value
+  if (ms <= 0) return '已过期'
+  const totalSec = Math.floor(ms / 1000)
+  const days = Math.floor(totalSec / 86400)
+  const h = Math.floor((totalSec % 86400) / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (days > 0) {
+    return `${days} 天 ${pad2(h)}:${pad2(m)}:${pad2(s)}`
+  }
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`
+}
 
 const showCreateKeyModal = ref(false)
 const showEditKeyModal = ref(false)
@@ -365,6 +453,7 @@ const availableColumns = [
   { key: 'remaining_count', label: '剩余次数' },
   { key: 'expire_time', label: '过期时间' },
   { key: 'card_type', label: '卡密类型' },
+  { key: 'machine_code', label: '机器码' },
   { key: 'is_exclusive', label: '是否专属' },
   { key: 'api_key_id', label: '专属API Key' }
 ]
@@ -404,19 +493,38 @@ const processExportData = (data) => {
     
     // 剩余时间/次数
     if (selectedColumns.value.includes('remaining_time')) {
-      processed.remaining_time = item.card_type === 'time' ? `${item.duration}天` : '-'
+      if (item.card_type === 'time') {
+        if (item.expire_time) {
+          const ms = new Date(item.expire_time).getTime() - Date.now()
+          if (ms <= 0) {
+            processed.remaining_time = '已过期'
+          } else {
+            const d = Math.floor(ms / 86400000)
+            const h = Math.floor((ms % 86400000) / 3600000)
+            const m = Math.floor((ms % 3600000) / 60000)
+            processed.remaining_time = d > 0 ? `${d}天${h}小时${m}分钟` : `${h}小时${m}分钟`
+          }
+        } else {
+          processed.remaining_time = `${item.duration}天（未激活）`
+        }
+      } else {
+        processed.remaining_time = '-'
+      }
     }
     if (selectedColumns.value.includes('remaining_count')) {
       processed.remaining_count = item.card_type === 'count' ? `${item.remaining_count}/${item.total_count}` : '-'
     }
-    
+
     // 时间字段
-    if (selectedColumns.value.includes('expire_time')) processed.expire_time = formatDate(item.expire_time)
+    if (selectedColumns.value.includes('expire_time')) {
+      processed.expire_time = item.expire_time ? formatDate(item.expire_time) : (item.card_type === 'time' ? '未激活' : '-')
+    }
     if (selectedColumns.value.includes('create_time')) processed.create_time = formatDate(item.create_time) // Add create_time if needed, though not in user request list but useful
     
     // 类型和专属信息
     if (selectedColumns.value.includes('card_type')) processed.card_type = getCardTypeText(item.card_type)
     if (selectedColumns.value.includes('status')) processed.status = getStatusText(item.status) // Status also useful
+    if (selectedColumns.value.includes('machine_code')) processed.machine_code = item.machine_code || '-'
     if (selectedColumns.value.includes('is_exclusive')) processed.is_exclusive = item.api_key_id ? '是' : '否'
     if (selectedColumns.value.includes('api_key_id')) processed.api_key_id = item.api_key_id || '-'
     
@@ -490,7 +598,8 @@ const editingKey = reactive({
   status: 0,
   verify_method: 'web',
   encryption_type: 'sha1',
-  allow_reverify: 1
+  allow_reverify: 1,
+  machine_code: ''
 })
 
 // 计算属性
@@ -591,7 +700,7 @@ const getStatusText = (status) => {
   const statusMap = {
     0: '未使用',
     1: '已使用',
-    2: '已停用'
+    2: '已暂停'
   }
   return statusMap[status] || status
 }
@@ -625,7 +734,6 @@ const createKeys = () => {
 }
 
 const editKey = (key) => {
-  // 复制卡密数据到编辑对象
   Object.assign(editingKey, {
     id: key.id,
     card_key: key.card_key,
@@ -636,7 +744,8 @@ const editKey = (key) => {
     status: key.status,
     verify_method: key.verify_method || 'web',
     encryption_type: key.encryption_type || 'advanced',
-    allow_reverify: key.allow_reverify !== undefined ? key.allow_reverify : 1
+    allow_reverify: key.allow_reverify !== undefined ? key.allow_reverify : 1,
+    machine_code: key.machine_code || ''
   })
   showEditKeyModal.value = true
 }
@@ -866,13 +975,14 @@ const copyKey = async (cardKey) => {
   table-layout: fixed;
 }
 
-.keys-table th:nth-child(1) { width: 6%; }   /* ID */
-.keys-table th:nth-child(2) { width: 28%; }  /* 卡密 */
-.keys-table th:nth-child(3) { width: 10%; }  /* 类型 */
-.keys-table th:nth-child(4) { width: 10%; }  /* 状态 */
-.keys-table th:nth-child(5) { width: 16%; }  /* 创建时间 */
-.keys-table th:nth-child(6) { width: 8%; }   /* 持续时间 */
-.keys-table th:nth-child(7) { width: 22%; }  /* 操作 */
+.keys-table th:nth-child(1) { width: 4%; }   /* ID */
+.keys-table th:nth-child(2) { width: 20%; }  /* 卡密 */
+.keys-table th:nth-child(3) { width: 7%; }   /* 类型 */
+.keys-table th:nth-child(4) { width: 7%; }   /* 状态 */
+.keys-table th:nth-child(5) { width: 10%; }  /* 机器码 */
+.keys-table th:nth-child(6) { width: 13%; }  /* 创建时间 */
+.keys-table th:nth-child(7) { width: 17%; }  /* 剩余时间/次数（倒计时） */
+.keys-table th:nth-child(8) { width: 22%; }  /* 操作 */
 
 .keys-table th,
 .keys-table td {
@@ -917,6 +1027,74 @@ const copyKey = async (cardKey) => {
 .key-code:hover {
   background: #e2e8f0;
   color: #2563eb;
+}
+
+.machine-code-cell {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.machine-code-tag {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 0.75rem;
+  background: #f0fdf4;
+  color: #15803d;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #bbf7d0;
+}
+
+.machine-code-empty {
+  font-size: 0.75rem;
+  color: #a1a1aa;
+}
+
+.machine-code-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.machine-code-edit .readonly-input {
+  flex: 1;
+}
+
+.machine-code-hint {
+  font-size: 0.8rem;
+  color: #a1a1aa;
+  white-space: nowrap;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.duration-cell {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.time-countdown {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  color: #0369a1;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.time-countdown.is-expired {
+  color: #b91c1c;
+}
+
+.time-spec {
+  color: #64748b;
+  font-size: 0.8125rem;
 }
 
 .card-type {

@@ -122,9 +122,10 @@ public class CustomInterfaceController {
                 throw new RuntimeException("No parameter mapping configured");
             }
 
-            // 4. Resolve Target Parameters (card_key)
+            // 4. Resolve Target Parameters (card_key, machine_code)
             String cardKey = null;
-            
+            String machineCode = null;
+
             for (Map<String, String> param : paramConfig) {
                 String incomingParamName = param.get("key");
                 String targetValueType = param.get("value"); 
@@ -133,6 +134,11 @@ public class CustomInterfaceController {
                 if ("variable".equals(type) && "card_key".equals(targetValueType)) {
                     if (incomingParams.containsKey(incomingParamName)) {
                         cardKey = incomingParams.get(incomingParamName);
+                    }
+                }
+                if ("variable".equals(type) && "machine_code".equals(targetValueType)) {
+                    if (incomingParams.containsKey(incomingParamName)) {
+                        machineCode = incomingParams.get(incomingParamName);
                     }
                 }
             }
@@ -156,9 +162,9 @@ public class CustomInterfaceController {
 
             // 5. Use Card
             String ipAddress = request.getRemoteAddr();
-            String deviceId = "custom_api"; 
+            String deviceId = "custom_api";
 
-            Card card = cardService.useCard(cardKey, deviceId, ipAddress, apiKey.getId());
+            Card card = cardService.useCard(cardKey, deviceId, ipAddress, apiKey.getId(), machineCode);
             
             // 6. Construct Custom Response (Success)
             return buildCustomResponse(config, card, "success", "验证成功");
@@ -183,8 +189,10 @@ public class CustomInterfaceController {
         if (message == null) return "error";
         if (message.contains("卡密不存在")) return "not_found";
         if (message.contains("卡密已过期")) return "expired";
-        if (message.contains("卡密已停用") || message.contains("已使用") || message.contains("无法使用")) return "used";
+        if (message.contains("卡密被停止使用") || message.contains("卡密已停用") || message.contains("已使用") || message.contains("无法使用")) return "used";
         if (message.contains("次数已用尽")) return "no_count";
+        if (message.contains("机器码")) return "machine_code_mismatch";
+        if (message.contains("不允许重复验证")) return "reverify_denied";
         return "error";
     }
 
@@ -284,6 +292,8 @@ public class CustomInterfaceController {
             case "card_status":
                 if (card == null) return "no";
                 return card.getStatus() == 1 ? "yes" : "no";
+            case "machine_code":
+                return card != null ? (card.getMachineCode() != null ? card.getMachineCode() : "") : "";
             default:
                 return null;
         }

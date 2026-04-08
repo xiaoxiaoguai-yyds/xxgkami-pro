@@ -8,6 +8,30 @@
       @logout="handleLogout"
     />
 
+    <!-- 卡密创建进度条 -->
+    <div v-if="createProgress.visible" class="create-progress-bar">
+      <div class="progress-content">
+        <div class="progress-info">
+          <span class="progress-icon">
+            <svg v-if="createProgress.done" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <svg v-else class="spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
+          </span>
+          <span class="progress-text">
+            <template v-if="createProgress.done">
+              全部创建完成！成功 {{ createProgress.success }} 条<template v-if="createProgress.fail > 0">，失败 {{ createProgress.fail }} 条</template>
+            </template>
+            <template v-else>
+              正在创建卡密... {{ createProgress.current }} / {{ createProgress.total }}（剩余 {{ createProgress.total - createProgress.current }} 条）
+            </template>
+          </span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: createProgress.percent + '%' }"></div>
+        </div>
+        <button v-if="createProgress.done" class="progress-close" @click="createProgress.visible = false">&times;</button>
+      </div>
+    </div>
+
     <!-- 主要内容区域 -->
     <main class="dashboard-main">
       <!-- 概览页面 -->
@@ -27,6 +51,8 @@
         :keys="keys"
         @create-keys="handleCreateKeys"
         @delete-key="handleDeleteKey"
+        @toggle-key-status="handleToggleKeyStatus"
+        @update-key="handleUpdateKey"
       />
 
       <!-- 定价管理页面 -->
@@ -87,6 +113,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { mockAdmins, mockUsers, mockCards, mockApiKeys, mockSettings, mockSlides, mockFeatures, mockDeleteKey } from '../data/mockData.js'
 import { cardApi, statsApi } from '../services/api.js'
+import { ElMessage } from 'element-plus'
 import NavigationBar from './NavigationBar.vue'
 import OverviewPage from './OverviewPage.vue'
 import KeysManagePage from './KeysManagePage.vue'
@@ -120,6 +147,16 @@ const carouselData = ref([])
 const features = ref([])
 const keys = ref([])
 const apiKeys = ref([])
+
+const createProgress = reactive({
+  visible: false,
+  current: 0,
+  total: 0,
+  success: 0,
+  fail: 0,
+  done: false,
+  percent: 0
+})
 
 // 创建模拟数据对象
 const mockData = {
@@ -170,22 +207,60 @@ const handleSlideChange = (index) => {
   currentSlide.value = index
 }
 
-const handleGenerateKeys = async (keyData) => {
-  try {
-    const result = await cardApi.createCards(keyData)
-    if (result.success) {
-      // 重新加载卡密数据
-      await loadKeys()
-      alert('卡密创建成功')
-    }
-  } catch (error) {
-    console.error('生成卡密失败:', error)
-    alert('生成卡密失败: ' + error.message)
-  }
-}
-
 const handleCreateKeys = async (keyData) => {
-  await handleGenerateKeys(keyData)
+  const totalCount = keyData.count || 1
+
+  // 少量（≤3）直接批量创建，不显示进度条
+  if (totalCount <= 3) {
+    try {
+      const result = await cardApi.createCards(keyData)
+      if (result.success) {
+        await loadKeys()
+        ElMessage.success(`成功创建 ${totalCount} 条卡密`)
+      }
+    } catch (error) {
+      console.error('生成卡密失败:', error)
+      ElMessage.error('生成卡密失败: ' + error.message)
+    }
+    return
+  }
+
+  // 逐条创建，显示进度条
+  createProgress.visible = true
+  createProgress.current = 0
+  createProgress.total = totalCount
+  createProgress.success = 0
+  createProgress.fail = 0
+  createProgress.done = false
+  createProgress.percent = 0
+
+  const singleData = { ...keyData, count: 1 }
+
+  for (let i = 0; i < totalCount; i++) {
+    try {
+      const result = await cardApi.createCards(singleData)
+      if (result.success) {
+        createProgress.success++
+      } else {
+        createProgress.fail++
+      }
+    } catch (error) {
+      console.error(`创建第 ${i + 1} 条失败:`, error)
+      createProgress.fail++
+    }
+    createProgress.current = i + 1
+    createProgress.percent = Math.round(((i + 1) / totalCount) * 100)
+  }
+
+  createProgress.done = true
+  await loadKeys()
+
+  // 5 秒后自动关闭进度条
+  setTimeout(() => {
+    if (createProgress.done) {
+      createProgress.visible = false
+    }
+  }, 5000)
 }
 
 const handleDeleteKey = async (keyId) => {
@@ -201,6 +276,41 @@ const handleDeleteKey = async (keyId) => {
   } catch (error) {
     console.error('删除卡密失败:', error)
     alert('删除卡密失败')
+  }
+}
+
+const handleUpdateKey = async (keyData) => {
+  try {
+    const result = await cardApi.updateCard(keyData.id, keyData)
+    if (result.success) {
+      ElMessage.success(result.message || '卡密更新成功')
+      await loadKeys()
+    } else {
+      ElMessage.error(result.message || '更新失败')
+    }
+  } catch (error) {
+    console.error('更新卡密失败:', error)
+    ElMessage.error(error.message || '更新卡密失败')
+  }
+}
+
+const handleToggleKeyStatus = async ({ id, status }) => {
+  try {
+    const result = await cardApi.updateAdminStatus(id, status)
+    if (result.success) {
+      const msg = result.message || '操作成功'
+      if (status === 2 && msg.includes('停止使用')) {
+        ElMessage.warning(msg)
+      } else {
+        ElMessage.success(msg)
+      }
+      await loadKeys()
+    } else {
+      ElMessage.error(result.message || '操作失败')
+    }
+  } catch (error) {
+    console.error('更新卡密状态失败:', error)
+    ElMessage.error(error.message || '更新卡密状态失败')
   }
 }
 
@@ -335,7 +445,94 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .dashboard-main {
     padding: 1rem;
-    padding-top: 1rem; /* Adjust if header is fixed */
+    padding-top: 1rem;
   }
+}
+
+/* 创建进度条 */
+.create-progress-bar {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.progress-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px 2rem;
+  position: relative;
+}
+
+.progress-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.progress-icon {
+  display: flex;
+  align-items: center;
+  color: #2563eb;
+}
+
+.spinning {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.progress-text {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #0ea5e9);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progress-close {
+  position: absolute;
+  top: 8px;
+  right: 2rem;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.progress-close:hover {
+  background: #f3f4f6;
+  color: #374151;
 }
 </style>

@@ -101,6 +101,40 @@ public class CardController {
     }
 
     /**
+     * 管理员编辑卡密（含机器码重置）
+     */
+    @PutMapping("/admin/{id}")
+    public ResponseEntity<Map<String, Object>> updateCard(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        try {
+            cardService.adminUpdateCard(id, body);
+            return ResponseEntity.ok(Map.of("success", true, "message", "卡密更新成功"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 管理员更新卡密启用/暂停状态（status: 2=暂停，1=恢复启用）
+     */
+    @PatchMapping("/admin/{id}/status")
+    public ResponseEntity<Map<String, Object>> updateAdminCardStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, Integer> body) {
+        try {
+            Integer status = body != null ? body.get("status") : null;
+            if (status == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "缺少 status"));
+            }
+            String msg = cardService.updateAdminCardStatus(id, status);
+            return ResponseEntity.ok(Map.of("success", true, "message", msg));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
      * 删除卡密
      */
     @DeleteMapping("/{id}")
@@ -130,9 +164,9 @@ public class CardController {
 
         String cardKey = params.get("card_key");
         String deviceId = params.get("device_id");
-        String apiKeyStr = params.get("api_key"); // If passed as parameter
-        
-        // Try to get IP from request if not provided
+        String apiKeyStr = params.get("api_key");
+        String machineCode = params.get("machine_code");
+
         String ipAddress = params.get("ip_address");
         if (ipAddress == null || ipAddress.isEmpty()) {
             ipAddress = httpRequest.getRemoteAddr();
@@ -179,7 +213,7 @@ public class CardController {
                 apiKeyService.updateUsage(apiKeyId);
             }
             
-            cardService.useCard(cardKey, deviceId, ipAddress, apiKeyId);
+            cardService.useCard(cardKey, deviceId, ipAddress, apiKeyId, machineCode);
             return ResponseEntity.ok(Map.of("success", true, "message", "Card used successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));

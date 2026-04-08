@@ -45,6 +45,17 @@ public class CardMapper {
         } catch (Exception e) {
             // Ignore if column exists
         }
+        try {
+            jdbcTemplate.execute("ALTER TABLE cards ADD COLUMN machine_code VARCHAR(255)");
+        } catch (Exception e) {
+            // Ignore if column exists
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE cards ADD INDEX idx_machine_code (machine_code)");
+        } catch (Exception e) {
+            // Ignore if index exists
+        }
+        System.out.println("Successfully updated cards table columns.");
     }
 
     /**
@@ -151,23 +162,33 @@ public class CardMapper {
         jdbcTemplate.update(sql, Timestamp.valueOf(useTime), deviceId, ipAddress, id);
     }
 
-    public void updateUsageByHash(String cardHash, java.time.LocalDateTime useTime, int status, int remainingCount) {
-        String sql = "UPDATE cards SET status = ?, use_time = ?, remaining_count = ? WHERE encrypted_key = ?";
-        jdbcTemplate.update(sql, status, Timestamp.valueOf(useTime), remainingCount, cardHash);
+    /**
+     * 按 encrypted_key 同步主表（高级卡密核销用）。时间卡需写入 expire_time，管理端列表与倒计时依赖该字段。
+     */
+    public void updateUsageByHash(String cardHash, java.time.LocalDateTime useTime, int status, int remainingCount,
+                                  java.time.LocalDateTime expireTime, String machineCode) {
+        String sql = "UPDATE cards SET status = ?, use_time = ?, remaining_count = ?, expire_time = ?, machine_code = ? WHERE encrypted_key = ?";
+        jdbcTemplate.update(sql, status, Timestamp.valueOf(useTime), remainingCount,
+                expireTime != null ? Timestamp.valueOf(expireTime) : null, machineCode, cardHash);
     }
 
     /**
      * 更新卡密信息
      */
     public void update(Card card) {
-        String sql = "UPDATE cards SET status = ?, use_time = ?, expire_time = ?, remaining_count = ?, device_id = ?, ip_address = ? WHERE id = ?";
-        jdbcTemplate.update(sql, 
+        String sql = "UPDATE cards SET status = ?, use_time = ?, expire_time = ?, remaining_count = ?, " +
+                     "device_id = ?, ip_address = ?, machine_code = ?, duration = ?, total_count = ?, allow_reverify = ? WHERE id = ?";
+        jdbcTemplate.update(sql,
             card.getStatus(),
             card.getUseTime() != null ? Timestamp.valueOf(card.getUseTime()) : null,
             card.getExpireTime() != null ? Timestamp.valueOf(card.getExpireTime()) : null,
             card.getRemainingCount(),
             card.getDeviceId(),
             card.getIpAddress(),
+            card.getMachineCode(),
+            card.getDuration(),
+            card.getTotalCount(),
+            card.getAllowReverify(),
             card.getId()
         );
     }
@@ -256,6 +277,19 @@ public class CardMapper {
         jdbcTemplate.update("DELETE FROM cards WHERE id = ?", id);
     }
 
+    /** 仅更新 status，用于管理员启用/暂停 */
+    public void updateStatusOnly(Long id, int status) {
+        jdbcTemplate.update("UPDATE cards SET status = ? WHERE id = ?", status, id);
+    }
+
+    /** 按 encrypted_key 补写 expire_time（高级时间卡历史数据修复） */
+    public void updateExpireTimeByHash(String cardHash, java.time.LocalDateTime expireTime) {
+        jdbcTemplate.update(
+                "UPDATE cards SET expire_time = ? WHERE encrypted_key = ?",
+                expireTime != null ? Timestamp.valueOf(expireTime) : null,
+                cardHash);
+    }
+
     public Card findById(Long id) {
         String sql = "SELECT * FROM cards WHERE id = ?";
         try {
@@ -303,6 +337,11 @@ public class CardMapper {
                 if (!rs.wasNull()) {
                     card.setApiKeyId(apiKeyId);
                 }
+            } catch (SQLException e) {
+                // Ignore
+            }
+            try {
+                card.setMachineCode(rs.getString("machine_code"));
             } catch (SQLException e) {
                 // Ignore
             }

@@ -532,6 +532,26 @@ export const cardApi = {
     return await apiRequest(`/cards/${cardId}`, {
       method: 'DELETE'
     });
+  },
+
+  /**
+   * 管理员：编辑卡密
+   */
+  async updateCard(cardId, data) {
+    return await apiRequest(`/cards/admin/${cardId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  /**
+   * 管理员：暂停(2) / 恢复启用(1)
+   */
+  async updateAdminStatus(cardId, status) {
+    return await apiRequest(`/cards/admin/${cardId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
   }
 };
 
@@ -689,7 +709,7 @@ export const apiKeyApi = {
   },
 
   async getAllUsers() {
-    return await apiRequest('/admin/users');
+    return await apiRequest('/admin/users?size=9999');
   }
 };
 

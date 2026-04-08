@@ -16,6 +16,28 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# ========== 重要提示 ==========
+echo ""
+echo -e "${RED}╔══════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║                                                                  ║${NC}"
+echo -e "${RED}║   ⚠⚠⚠  重 要 提 示  ⚠⚠⚠                                      ║${NC}"
+echo -e "${RED}║                                                                  ║${NC}"
+echo -e "${RED}║   当前一键部署脚本存在已知 Bug，暂不建议使用！                    ║${NC}"
+echo -e "${RED}║                                                                  ║${NC}"
+echo -e "${YELLOW}║   ★ 推荐使用宝塔面板进行本地部署（稳定可靠）                     ║${NC}"
+echo -e "${YELLOW}║   ★ 部署文档：${GREEN}https://doc.xxgkami.com/${YELLOW}                          ║${NC}"
+echo -e "${YELLOW}║   ★ 官方QQ群：${GREEN}1050160397${YELLOW} （免费搭建部署解答问题）              ║${NC}"
+echo -e "${RED}║                                                                  ║${NC}"
+echo -e "${RED}╚══════════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${YELLOW}是否仍然继续使用一键脚本？(y/N): ${NC}"
+read -r CONTINUE_INSTALL
+if [[ ! "$CONTINUE_INSTALL" =~ ^[Yy]$ ]]; then
+    echo -e "${GREEN}已退出。请参考部署文档使用宝塔面板部署：https://doc.xxgkami.com/${NC}"
+    exit 0
+fi
+echo ""
+
 show_menu() {
     clear
     # 获取系统信息

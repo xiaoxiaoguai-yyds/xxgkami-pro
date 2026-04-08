@@ -36,14 +36,23 @@
     </div>
   </div>
 
-  <div v-else class="login-container">
-    <div class="login-card">
+  <div v-else class="login-container" :class="{ 'admin-theme': userType === 'admin' }">
+    <div class="login-card" :class="{ 'admin-card': userType === 'admin' }">
+      <!-- 管理员页顶部返回 -->
+      <div v-if="userType === 'admin'" class="back-to-user" @click="switchToUser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        返回用户登录
+      </div>
+
       <div class="login-header">
         <div class="brand-logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="logo-icon"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          <!-- 管理员：盾牌图标 -->
+          <svg v-if="userType === 'admin'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="logo-icon admin-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10" stroke-width="2"></polyline></svg>
+          <!-- 用户：原图标 -->
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="logo-icon user-icon"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
         </div>
-        <h2>{{ userType === 'admin' ? '管理员登录' : '卡密管理系统' }}</h2>
-        <p>请登录您的账号</p>
+        <h2>{{ userType === 'admin' ? '管理员控制台' : '卡密管理系统' }}</h2>
+        <p>{{ userType === 'admin' ? '仅限授权管理员登录' : '登录您的账号以继续' }}</p>
       </div>
 
       <form @submit.prevent="handleLogin" class="login-form">
@@ -352,6 +361,18 @@ const props = defineProps({
 })
 
 const userType = ref(props.initialUserType)
+const emit = defineEmits(['login-success', 'switch-to-user'])
+
+const switchToUser = () => {
+  userType.value = 'user'
+  errorMessage.value = ''
+  successMessage.value = ''
+  loginForm.username = ''
+  loginForm.password = ''
+  loginForm.totpCode = ''
+  emit('switch-to-user')
+}
+
 const showPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
@@ -732,7 +753,7 @@ watch(userType, () => {
   showTotpInput.value = false
 })
 
-const emit = defineEmits(['login-success'])
+// emit already declared above
 
 const handleTotpLogin = async () => {
     if (!loginForm.totpCode || loginForm.totpCode.length !== 6) {
@@ -891,9 +912,11 @@ const resetForm = () => {
 </script>
 
 <style scoped>
+
+/* ======================== 用户登录主题 ======================== */
 .login-container {
   min-height: 100vh;
-  background: #f3f4f6;
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -903,12 +926,12 @@ const resetForm = () => {
 
 .login-card {
   background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 4px 20px rgba(0, 0, 0, 0.08);
   padding: 2.5rem;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
 }
 
 .login-header {
@@ -923,9 +946,18 @@ const resetForm = () => {
 }
 
 .logo-icon {
-  width: 40px;
-  height: 40px;
-  color: #111827;
+  width: 48px;
+  height: 48px;
+}
+
+.logo-icon.user-icon {
+  color: #2563eb;
+}
+
+.logo-icon.admin-icon {
+  width: 52px;
+  height: 52px;
+  color: #dc2626;
 }
 
 .login-header h2 {
@@ -940,6 +972,54 @@ const resetForm = () => {
   color: #6b7280;
   margin: 0;
   font-size: 0.875rem;
+}
+
+/* ======================== 管理员登录主题 ======================== */
+.login-container.admin-theme {
+  background: linear-gradient(135deg, #1e1e2f 0%, #2d1b3d 50%, #1a1a2e 100%);
+}
+
+.login-card.admin-card {
+  background: #ffffff;
+  border-top: 4px solid #dc2626;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35), 0 4px 20px rgba(220, 38, 38, 0.1);
+}
+
+.admin-card .login-header h2 {
+  color: #1e1e2f;
+}
+
+.admin-card .login-header p {
+  color: #9ca3af;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-card .login-button {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.admin-card .login-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+}
+
+.back-to-user {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+  cursor: pointer;
+  margin-bottom: 1.25rem;
+  padding: 0.35rem 0;
+  transition: color 0.2s;
+  user-select: none;
+}
+
+.back-to-user:hover {
+  color: #dc2626;
 }
 
 
@@ -958,20 +1038,26 @@ const resetForm = () => {
 
 .form-group input {
   width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  padding: 0.7rem 0.85rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
   font-size: 0.875rem;
   transition: all 0.2s;
   box-sizing: border-box;
-  background: white;
+  background: #f9fafb;
   color: #111827;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #111827;
-  ring: 1px solid #111827;
+  border-color: #2563eb;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.admin-card .form-group input:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
 }
 
 .form-group input:disabled {
@@ -1010,10 +1096,10 @@ const resetForm = () => {
 .login-button {
   width: 100%;
   padding: 0.75rem;
-  background: #111827;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -1021,12 +1107,16 @@ const resetForm = () => {
 }
 
 .login-button:hover:not(:disabled) {
-  background: #1f2937;
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
 }
 
 .login-button:disabled {
   background: #9ca3af;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .oauth-section {

@@ -290,6 +290,7 @@ onMounted(async () => {
       v-else-if="currentPage === 'login'" 
       :initial-user-type="loginType"
       @login-success="handleLoginSuccess"
+      @switch-to-user="loginType = 'user'"
     />
     
     <!-- 管理员界面 -->

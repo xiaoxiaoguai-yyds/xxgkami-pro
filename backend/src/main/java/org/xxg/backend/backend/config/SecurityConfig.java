@@ -54,7 +54,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         // 允许所有来源，方便调试和部署。生产环境建议指定具体域名。
         // configuration.setAllowedOrigins(List.of("*")); 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));
         // 当 AllowedOrigins 为 * 时，AllowCredentials 不能为 true，需改为 false 或指定具体 Origin
         // 这里为了兼容性，建议前端通过 Nginx 转发，或者指定具体 IP

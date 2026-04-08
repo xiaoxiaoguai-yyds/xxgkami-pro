@@ -353,6 +353,12 @@
                     <td>String</td>
                     <td>设备标识</td>
                   </tr>
+                  <tr>
+                    <td>machine_code</td>
+                    <td>否</td>
+                    <td>String</td>
+                    <td>机器码 (一机一码，首次使用时绑定)</td>
+                  </tr>
                    <tr>
                     <td>ip_address</td>
                     <td>否</td>
@@ -448,6 +454,7 @@
                       <option value="client_ip">使用者IP (client_ip)</option>
                       <option value="card_key">卡密 (card_key)</option>
                       <option value="api_key">API Key (api_key)</option>
+                      <option value="machine_code">机器码 (machine_code)</option>
                       <option value="remaining_time">剩余时间 (remaining_time)</option>
                       <option value="remaining_count">剩余次数 (remaining_count)</option>
                     </select>
@@ -503,6 +510,7 @@
                       <option value="expire_time">过期时间</option>
                       <option value="card_type">卡密类型</option>
                       <option value="card_status">卡密状态 (yes/no)</option>
+                      <option value="machine_code">机器码</option>
                     </select>
                   </div>
                   <div class="row-actions">
@@ -622,6 +630,8 @@ const interfaceConfig = reactive({
     { key: 'expired', label: '卡密已过期', value: '401' },
     { key: 'used', label: '卡密已使用/停用', value: '402' },
     { key: 'no_count', label: '次数已用尽', value: '403' },
+    { key: 'machine_code_mismatch', label: '机器码不匹配', value: '406' },
+    { key: 'reverify_denied', label: '不允许重复验证', value: '407' },
     { key: 'error', label: '其他错误', value: '500' }
   ]
 })
@@ -704,9 +714,10 @@ const fetchApiKeys = async () => {
 const fetchUsers = async () => {
   try {
     const data = await apiKeyApi.getAllUsers()
-    allUsers.value = data
+    allUsers.value = data?.users || data || []
   } catch (error) {
     console.error('Failed to fetch users:', error)
+    allUsers.value = []
   }
 }
 
@@ -1069,6 +1080,8 @@ const restoreDefaultStatusCodes = () => {
     { key: 'expired', label: '卡密已过期', value: '401' },
     { key: 'used', label: '卡密已使用/停用', value: '402' },
     { key: 'no_count', label: '次数已用尽', value: '403' },
+    { key: 'machine_code_mismatch', label: '机器码不匹配', value: '406' },
+    { key: 'reverify_denied', label: '不允许重复验证', value: '407' },
     { key: 'error', label: '其他错误', value: '500' }
   ]
 }
@@ -1330,7 +1343,9 @@ const previewUrl = computed(() => {
         if (p.value === 'api_key') {
           val = currentApiKey.value.key || 'YOUR_API_KEY'
         } else if (p.value === 'card_key') {
-          val = '{card_key}' // 保持占位符，因为这是需要用户填写的
+          val = '{card_key}'
+        } else if (p.value === 'machine_code') {
+          val = '{machine_code}'
         } else if (p.value === 'client_ip') {
           val = '127.0.0.1'
         } else if (p.value === 'time') {
@@ -1383,7 +1398,8 @@ const previewResponseJson = computed(() => {
         else if (p.value === 'card_key') val = 'ABC123XYZ'
         else if (p.value === 'expire_time') val = '2026-01-01 12:00:00'
         else if (p.value === 'card_type') val = '时间卡'
-        else if (p.value === 'card_status') val = 'no' // 默认未使用
+        else if (p.value === 'card_status') val = 'no'
+        else if (p.value === 'machine_code') val = 'MC-ABCDEF123456'
         else if (p.value === 'success') val = true
         else if (p.value === 'message') val = '验证成功'
         else if (p.value === 'status_code') {
