@@ -28,6 +28,17 @@ public class ApiKey {
     @JsonProperty("enable_card_encryption")
     private Boolean enableCardEncryption;
 
+    /** 强制核销时携带 machine_code（防未绑机前被多机冒用） */
+    @JsonProperty("require_machine_code")
+    private Boolean requireMachineCode;
+
+    /**
+     * JSON: {"enabled":true,"rules":[{"card_type":"time","duration":1},{"card_type":"count","total_count":100}]}
+     * 匹配到的规格在同 api_key + 同机器码下仅能成功核销一次。
+     */
+    @JsonProperty("machine_spec_once_config")
+    private String machineSpecOnceConfig;
+
     public ApiKey() {}
 
     public Long getId() { return id; }
@@ -77,4 +88,10 @@ public class ApiKey {
 
     public Boolean getEnableCardEncryption() { return enableCardEncryption; }
     public void setEnableCardEncryption(Boolean enableCardEncryption) { this.enableCardEncryption = enableCardEncryption; }
+
+    public Boolean getRequireMachineCode() { return requireMachineCode; }
+    public void setRequireMachineCode(Boolean requireMachineCode) { this.requireMachineCode = requireMachineCode; }
+
+    public String getMachineSpecOnceConfig() { return machineSpecOnceConfig; }
+    public void setMachineSpecOnceConfig(String machineSpecOnceConfig) { this.machineSpecOnceConfig = machineSpecOnceConfig; }
 }

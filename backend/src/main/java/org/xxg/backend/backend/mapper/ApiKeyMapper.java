@@ -52,6 +52,19 @@ public class ApiKeyMapper {
                  jdbcTemplate.execute("ALTER TABLE api_keys ADD COLUMN enable_card_encryption TINYINT(1) DEFAULT 0 COMMENT '是否启用卡密加密验证'");
             }
 
+            try {
+                jdbcTemplate.execute("SELECT require_machine_code FROM api_keys LIMIT 1");
+            } catch (Exception e) {
+                logger.info("Adding require_machine_code to api_keys...");
+                jdbcTemplate.execute("ALTER TABLE api_keys ADD COLUMN require_machine_code TINYINT(1) NOT NULL DEFAULT 0 COMMENT '核销时强制传入机器码'");
+            }
+            try {
+                jdbcTemplate.execute("SELECT machine_spec_once_config FROM api_keys LIMIT 1");
+            } catch (Exception e) {
+                logger.info("Adding machine_spec_once_config to api_keys...");
+                jdbcTemplate.execute("ALTER TABLE api_keys ADD COLUMN machine_spec_once_config TEXT NULL COMMENT '同机规格一次限制JSON'");
+            }
+
         } catch (Exception e) {
             logger.error("Failed to create api_keys table", e);
         }
@@ -172,7 +185,7 @@ public class ApiKeyMapper {
     }
 
     public void insert(ApiKey apiKey) {
-        String sql = "INSERT INTO api_keys (key_name, api_key, key_value, name, description, status, create_time, webhook_config, enable_card_encryption) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO api_keys (key_name, api_key, key_value, name, description, status, create_time, webhook_config, enable_card_encryption, require_machine_code, machine_spec_once_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         jdbcTemplate.update(sql, 
             apiKey.getKeyName(), 
             apiKey.getApiKey(), 
@@ -182,13 +195,18 @@ public class ApiKeyMapper {
             apiKey.getStatus(), 
             LocalDateTime.now(),
             apiKey.getWebhookConfig(),
-            apiKey.getEnableCardEncryption()
+            Boolean.TRUE.equals(apiKey.getEnableCardEncryption()) ? 1 : 0,
+            Boolean.TRUE.equals(apiKey.getRequireMachineCode()) ? 1 : 0,
+            apiKey.getMachineSpecOnceConfig()
         );
     }
 
     public void update(ApiKey apiKey) {
-        String sql = "UPDATE api_keys SET key_name = ?, description = ?, status = ?, webhook_config = ?, enable_card_encryption = ? WHERE id = ?";
-        jdbcTemplate.update(sql, apiKey.getKeyName(), apiKey.getDescription(), apiKey.getStatus(), apiKey.getWebhookConfig(), apiKey.getEnableCardEncryption(), apiKey.getId());
+        String sql = "UPDATE api_keys SET key_name = ?, description = ?, status = ?, webhook_config = ?, enable_card_encryption = ?, require_machine_code = ?, machine_spec_once_config = ? WHERE id = ?";
+        jdbcTemplate.update(sql, apiKey.getKeyName(), apiKey.getDescription(), apiKey.getStatus(), apiKey.getWebhookConfig(),
+                Boolean.TRUE.equals(apiKey.getEnableCardEncryption()) ? 1 : 0,
+                Boolean.TRUE.equals(apiKey.getRequireMachineCode()) ? 1 : 0,
+                apiKey.getMachineSpecOnceConfig(), apiKey.getId());
     }
 
     public void delete(Long id) {
@@ -241,7 +259,21 @@ public class ApiKeyMapper {
             apiKey.setDescription(rs.getString("description"));
             apiKey.setStatus(rs.getInt("status"));
             apiKey.setWebhookConfig(rs.getString("webhook_config"));
-            apiKey.setEnableCardEncryption(rs.getBoolean("enable_card_encryption"));
+            try {
+                apiKey.setEnableCardEncryption(rs.getBoolean("enable_card_encryption"));
+            } catch (SQLException e) {
+                apiKey.setEnableCardEncryption(false);
+            }
+            try {
+                apiKey.setRequireMachineCode(rs.getBoolean("require_machine_code"));
+            } catch (SQLException e) {
+                apiKey.setRequireMachineCode(false);
+            }
+            try {
+                apiKey.setMachineSpecOnceConfig(rs.getString("machine_spec_once_config"));
+            } catch (SQLException e) {
+                apiKey.setMachineSpecOnceConfig(null);
+            }
             
             if (rs.getTimestamp("create_time") != null) {
                 apiKey.setCreateTime(rs.getTimestamp("create_time").toLocalDateTime());

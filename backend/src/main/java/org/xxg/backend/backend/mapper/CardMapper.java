@@ -55,6 +55,21 @@ public class CardMapper {
         } catch (Exception e) {
             // Ignore if index exists
         }
+        try {
+            jdbcTemplate.execute("ALTER TABLE cards ADD COLUMN stack_time_if_same_machine TINYINT(1) NOT NULL DEFAULT 0");
+        } catch (Exception e) {
+            // exists
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE cards ADD COLUMN merged_into_card_id BIGINT NULL");
+        } catch (Exception e) {
+            // exists
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE cards ADD COLUMN allow_self_unbind TINYINT(1) NOT NULL DEFAULT 0 COMMENT '允许用户在首页自助解绑机器码'");
+        } catch (Exception e) {
+            // exists
+        }
         System.out.println("Successfully updated cards table columns.");
     }
 
@@ -91,7 +106,7 @@ public class CardMapper {
      * 统计已使用卡密数量
      */
     public int countUsedCards() {
-        String sql = "SELECT COUNT(*) FROM cards WHERE status = 1";
+        String sql = "SELECT COUNT(*) FROM cards WHERE status IN (1, 4)";
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
         return count != null ? count : 0;
     }
@@ -114,7 +129,7 @@ public class CardMapper {
         String sql = "SELECT DATE(use_time) as date, COUNT(*) as count " +
                      "FROM cards " +
                      "WHERE use_time >= DATE_SUB(CURDATE(), INTERVAL ? DAY) " +
-                     "AND status = 1 " + // 假设1是已使用，虽然use_time不为null也隐含已使用
+                     "AND status IN (1, 4) " +
                      "GROUP BY DATE(use_time) " +
                      "ORDER BY date ASC";
         
@@ -177,7 +192,8 @@ public class CardMapper {
      */
     public void update(Card card) {
         String sql = "UPDATE cards SET status = ?, use_time = ?, expire_time = ?, remaining_count = ?, " +
-                     "device_id = ?, ip_address = ?, machine_code = ?, duration = ?, total_count = ?, allow_reverify = ? WHERE id = ?";
+                     "device_id = ?, ip_address = ?, machine_code = ?, duration = ?, total_count = ?, allow_reverify = ?, " +
+                     "stack_time_if_same_machine = ?, allow_self_unbind = ?, merged_into_card_id = ? WHERE id = ?";
         jdbcTemplate.update(sql,
             card.getStatus(),
             card.getUseTime() != null ? Timestamp.valueOf(card.getUseTime()) : null,
@@ -189,6 +205,9 @@ public class CardMapper {
             card.getDuration(),
             card.getTotalCount(),
             card.getAllowReverify(),
+            Boolean.TRUE.equals(card.getStackTimeIfSameMachine()) ? 1 : 0,
+            Boolean.TRUE.equals(card.getAllowSelfUnbind()) ? 1 : 0,
+            card.getMergedIntoCardId(),
             card.getId()
         );
     }
@@ -225,8 +244,8 @@ public class CardMapper {
      * 批量插入卡密
      */
     public void batchInsert(List<Card> cards) {
-        String sql = "INSERT INTO cards (card_key, encrypted_key, card_type, duration, total_count, remaining_count, status, verify_method, encryption_type, allow_reverify, create_time, creator_type, creator_id, creator_name, api_key_id) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO cards (card_key, encrypted_key, card_type, duration, total_count, remaining_count, status, verify_method, encryption_type, allow_reverify, create_time, creator_type, creator_id, creator_name, api_key_id, stack_time_if_same_machine, allow_self_unbind, merged_into_card_id) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
@@ -251,6 +270,13 @@ public class CardMapper {
                 } else {
                     ps.setNull(15, java.sql.Types.BIGINT);
                 }
+                ps.setInt(16, Boolean.TRUE.equals(card.getStackTimeIfSameMachine()) ? 1 : 0);
+                ps.setInt(17, Boolean.TRUE.equals(card.getAllowSelfUnbind()) ? 1 : 0);
+                if (card.getMergedIntoCardId() != null) {
+                    ps.setLong(18, card.getMergedIntoCardId());
+                } else {
+                    ps.setNull(18, java.sql.Types.BIGINT);
+                }
             }
 
             @Override
@@ -271,6 +297,36 @@ public class CardMapper {
     public List<Card> findAll() {
         String sql = "SELECT * FROM cards ORDER BY create_time DESC";
         return jdbcTemplate.query(sql, new CardRowMapper());
+    }
+
+    /**
+     * 查找同机器码上可作为「时长叠加锚点」的候选时间卡（需结合 card_status / 有效期在业务层筛选）。
+     */
+    public List<Card> listStackAnchorCandidates(String machineCode, Long excludeCardId) {
+        if (machineCode == null || machineCode.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Long ex = excludeCardId != null ? excludeCardId : -1L;
+        String sql = "SELECT * FROM cards WHERE machine_code = ? AND card_type = 'time' AND status = 1 AND id <> ?";
+        return jdbcTemplate.query(sql, new CardRowMapper(), machineCode, ex);
+    }
+
+    public void updateExpireTimeById(Long cardId, java.time.LocalDateTime expireTime) {
+        jdbcTemplate.update("UPDATE cards SET expire_time = ? WHERE id = ?",
+                expireTime != null ? Timestamp.valueOf(expireTime) : null, cardId);
+    }
+
+    /** 核销「续期叠加」的卡：标记合并状态并记录续期到哪张主卡 */
+    public void markCardMergedInto(Long consumedCardId, Long anchorCardId, java.time.LocalDateTime useTime,
+                                   String machineCode, String deviceId, String ipAddress) {
+        jdbcTemplate.update(
+                "UPDATE cards SET status = 4, merged_into_card_id = ?, use_time = ?, expire_time = NULL, machine_code = ?, device_id = ?, ip_address = ? WHERE id = ?",
+                anchorCardId,
+                Timestamp.valueOf(useTime),
+                machineCode,
+                deviceId,
+                ipAddress,
+                consumedCardId);
     }
 
     public void delete(Long id) {
@@ -344,6 +400,21 @@ public class CardMapper {
                 card.setMachineCode(rs.getString("machine_code"));
             } catch (SQLException e) {
                 // Ignore
+            }
+            try {
+                card.setStackTimeIfSameMachine(rs.getInt("stack_time_if_same_machine") == 1);
+            } catch (SQLException ignored) {
+            }
+            try {
+                card.setAllowSelfUnbind(rs.getInt("allow_self_unbind") == 1);
+            } catch (SQLException ignored) {
+            }
+            try {
+                long merged = rs.getLong("merged_into_card_id");
+                if (!rs.wasNull()) {
+                    card.setMergedIntoCardId(merged);
+                }
+            } catch (SQLException ignored) {
             }
             return card;
         }

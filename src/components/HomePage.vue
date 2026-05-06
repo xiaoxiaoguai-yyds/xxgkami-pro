@@ -29,6 +29,13 @@
               GitHub
             </a>
           </div>
+          <button type="button" class="nav-link nav-link-btn" @click="goOnlineUnbind">
+            <svg class="link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+            </svg>
+            在线解绑
+          </button>
           <button class="login-btn" @click="goToLogin">
             <svg class="login-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
@@ -389,10 +396,14 @@
 <script setup>
 import { defineEmits } from 'vue'
 
-const emit = defineEmits(['showLogin'])
+const emit = defineEmits(['showLogin', 'goOnlineUnbind'])
 
 const goToLogin = () => {
   emit('showLogin')
+}
+
+const goOnlineUnbind = () => {
+  emit('goOnlineUnbind')
 }
 
 const scrollToFeatures = () => {
@@ -508,6 +519,15 @@ const scrollToFeatures = () => {
 .nav-link:hover {
   color: #111827;
   background: #f9fafb;
+}
+
+.nav-link-btn {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .link-icon {

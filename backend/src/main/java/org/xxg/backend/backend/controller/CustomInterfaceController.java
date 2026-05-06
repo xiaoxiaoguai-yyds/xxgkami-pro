@@ -189,7 +189,12 @@ public class CustomInterfaceController {
         if (message == null) return "error";
         if (message.contains("卡密不存在")) return "not_found";
         if (message.contains("卡密已过期")) return "expired";
-        if (message.contains("卡密被停止使用") || message.contains("卡密已停用") || message.contains("已使用") || message.contains("无法使用")) return "used";
+        if (message.contains("续期合并")) return "merged";
+        if (message.contains("同机同规格") || message.contains("此规格卡密")) return "spec_once_used";
+        if (message.contains("规格核销记录冲突")) return "spec_once_concurrency";
+        if (message.contains("要求核销时必须提供机器码")) return "machine_code_required";
+        if (message.contains("卡密被停止使用") || message.contains("卡密已停用")) return "used";
+        if (message.contains("已使用") || message.contains("无法使用")) return "used";
         if (message.contains("次数已用尽")) return "no_count";
         if (message.contains("机器码")) return "machine_code_mismatch";
         if (message.contains("不允许重复验证")) return "reverify_denied";

@@ -75,4 +75,10 @@ public class CardStatusMapper {
         String sql = "UPDATE card_status SET expire_time = ? WHERE card_hash = ?";
         jdbcTemplate.update(sql, Timestamp.valueOf(expireTime), cardHash);
     }
+
+    /** 管理端同步高级次数卡在 card_status 中的剩余/总次数（核销逻辑读此表） */
+    public void updateQuota(String cardHash, int remainCount, int totalCount) {
+        String sql = "UPDATE card_status SET remain_count = ?, total_count = ? WHERE card_hash = ?";
+        jdbcTemplate.update(sql, remainCount, totalCount, cardHash);
+    }
 }

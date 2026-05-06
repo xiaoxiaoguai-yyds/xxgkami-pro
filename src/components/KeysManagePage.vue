@@ -13,7 +13,31 @@
         </button>
       </div>
     </div>
-    
+
+    <div class="keys-toolbar">
+      <div class="toolbar-search">
+        <label class="toolbar-label" for="machine-code-search">机器码搜索</label>
+        <input
+          id="machine-code-search"
+          v-model.trim="machineCodeSearch"
+          type="search"
+          class="toolbar-input"
+          placeholder="输入设备码关键字，筛选已绑定该机器码的卡密"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button v-if="machineCodeSearch" type="button" class="toolbar-clear" @click="machineCodeSearch = ''">
+          清除
+        </button>
+      </div>
+      <p class="toolbar-meta">
+        当前列表：<strong>{{ filteredKeys.length }}</strong> 条
+        <template v-if="machineCodeSearch">（已按机器码过滤）</template>
+        <span class="toolbar-divider">|</span>
+        全库共计 {{ props.keys?.length || 0 }} 条
+      </p>
+    </div>
+
     <div class="keys-table">
       <table>
         <thead>
@@ -29,7 +53,13 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="key in paginatedKeys" :key="key.id">
+          <tr v-if="filteredKeys.length === 0">
+            <td colspan="8" class="empty-table-hint">
+              {{ machineCodeSearch ? '没有绑定该机器码的卡密（可尝试缩短关键字或清除筛选）' : '暂无卡密数据' }}
+            </td>
+          </tr>
+          <template v-else>
+            <tr v-for="key in paginatedKeys" :key="key.id">
             <td>{{ key.id }}</td>
             <td class="key-code" @click="copyKey(key.card_key)" title="点击复制">
               {{ key.card_key }}
@@ -94,6 +124,7 @@
               </div>
             </td>
           </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -211,9 +242,24 @@
               </div>
             </div>
           </div>
+          <div class="setting-group export-scope-group">
+            <h4>导出范围</h4>
+            <p class="export-scope-hint">会先应用上方「机器码搜索」的结果，再按使用状态筛选；选「全部」则仅受机器码搜索影响。</p>
+            <div class="radio-group horizontal">
+              <label class="radio-label">
+                <input type="radio" v-model="exportUsageScope" value="all"> 全部（未按状态筛选）
+              </label>
+              <label class="radio-label">
+                <input type="radio" v-model="exportUsageScope" value="unused"> 仅未使用
+              </label>
+              <label class="radio-label">
+                <input type="radio" v-model="exportUsageScope" value="used"> 仅已使用（含已暂停）
+              </label>
+            </div>
+          </div>
           
           <div class="preview-section">
-            <h4>数据预览 (前5条)</h4>
+            <h4>数据预览 (前 5 条，共符合条件 {{ keysForExport.length }} 条)</h4>
             <div class="preview-table-container">
               <table class="preview-table">
                 <thead>
@@ -294,6 +340,34 @@
             <small class="form-hint" v-if="editingKey.allow_reverify == 0">关闭后，时间卡密激活一次即不可再次验证</small>
             <small class="form-hint" v-else>开启后，时间卡密在有效期内可无限次验证</small>
           </div>
+          <div class="form-group stack-time-stack-group">
+            <div
+              class="stack-option-card"
+              :class="{ 'stack-option-card--active': editingKey.allow_self_unbind }"
+            >
+              <label class="stack-toggle-row">
+                <span class="stack-switch">
+                  <input
+                    type="checkbox"
+                    v-model="editingKey.allow_self_unbind"
+                    class="stack-switch-input"
+                  />
+                  <span class="stack-switch-track">
+                    <span class="stack-switch-thumb"></span>
+                  </span>
+                </span>
+                <span class="stack-toggle-copy">
+                  <span class="stack-toggle-title">
+                    允许自助解绑
+                    <span v-if="editingKey.allow_self_unbind" class="stack-toggle-pill">已开启</span>
+                  </span>
+                  <span class="stack-toggle-desc">
+                    开启后，用户可凭卡密在首页「在线解绑」自行清空机器码；关闭则只能通过管理员重置。
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
           <div class="form-group">
             <label>机器码</label>
             <div class="machine-code-edit">
@@ -363,6 +437,62 @@
             </select>
             <small class="form-hint" v-if="newKey.allow_reverify == 0">关闭后，时间卡密激活一次即不可再次验证</small>
             <small class="form-hint" v-else>开启后，时间卡密在有效期内可无限次验证</small>
+          </div>
+          <div class="form-group stack-time-stack-group" v-if="newKey.card_type === 'time'">
+            <div
+              class="stack-option-card"
+              :class="{ 'stack-option-card--active': newKey.stack_time_if_same_machine }"
+            >
+              <label class="stack-toggle-row">
+                <span class="stack-switch">
+                  <input
+                    type="checkbox"
+                    v-model="newKey.stack_time_if_same_machine"
+                    class="stack-switch-input"
+                  />
+                  <span class="stack-switch-track">
+                    <span class="stack-switch-thumb"></span>
+                  </span>
+                </span>
+                <span class="stack-toggle-copy">
+                  <span class="stack-toggle-title">
+                    同机时长叠加（续期）
+                    <span v-if="newKey.stack_time_if_same_machine" class="stack-toggle-pill">已开启</span>
+                  </span>
+                  <span class="stack-toggle-desc">
+                    同一机器码上若已有未过期时间卡，激活本卡时将天数累加到原卡到期时间（本卡标记为「已合并」）；关闭则每次仍从激活时刻重新起算。
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group stack-time-stack-group">
+            <div
+              class="stack-option-card"
+              :class="{ 'stack-option-card--active': newKey.allow_self_unbind }"
+            >
+              <label class="stack-toggle-row">
+                <span class="stack-switch">
+                  <input
+                    type="checkbox"
+                    v-model="newKey.allow_self_unbind"
+                    class="stack-switch-input"
+                  />
+                  <span class="stack-switch-track">
+                    <span class="stack-switch-thumb"></span>
+                  </span>
+                </span>
+                <span class="stack-toggle-copy">
+                  <span class="stack-toggle-title">
+                    允许自助解绑
+                    <span v-if="newKey.allow_self_unbind" class="stack-toggle-pill">已开启</span>
+                  </span>
+                  <span class="stack-toggle-desc">
+                    开启后，用户可凭卡密在首页「在线解绑」自行清空机器码；关闭则只能通过管理员重置。
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
         </div>
         <div class="modal-actions">
@@ -442,6 +572,10 @@ const showEditKeyModal = ref(false)
 const showExportModal = ref(false)
 const exporting = ref(false)
 const exportFormat = ref('xlsx')
+/** all | unused | used — 导出时筛选未使用 / 已使用（含暂停） */
+const exportUsageScope = ref('all')
+/** 列表与导出预览均先按机器码关键字过滤（不区分大小写） */
+const machineCodeSearch = ref('')
 const selectedColumns = ref(['id', 'card_key', 'card_type', 'status', 'create_time'])
 
 const availableColumns = [
@@ -532,21 +666,43 @@ const processExportData = (data) => {
   })
 }
 
+const filteredKeys = computed(() => {
+  const list = props.keys || []
+  const q = (machineCodeSearch.value || '').trim().toLowerCase()
+  if (!q) return list
+  return list.filter((k) => {
+    const mc = (k.machine_code ?? '').toString().toLowerCase()
+    return mc.includes(q)
+  })
+})
+
+const keysForExport = computed(() => {
+  let keys = filteredKeys.value
+  if (exportUsageScope.value === 'unused') {
+    keys = keys.filter((k) => Number(k.status) === 0)
+  } else if (exportUsageScope.value === 'used') {
+    keys = keys.filter((k) => [1, 2, 4].includes(Number(k.status)))
+  }
+  return keys
+})
+
 const previewData = computed(() => {
-  if (!props.keys || props.keys.length === 0) return []
-  return processExportData(props.keys.slice(0, 5))
+  const src = keysForExport.value
+  if (!src.length) return []
+  return processExportData(src.slice(0, 5))
 })
 
 const exportData = async () => {
   if (selectedColumns.value.length === 0) return
-  
+
+  const allData = keysForExport.value
+  if (allData.length === 0) {
+    ElMessage.warning('当前筛选条件下没有可导出的数据')
+    return
+  }
+
   exporting.value = true
   try {
-    // 获取所有数据 (如果 props.keys 是分页后的，这里应该请求 API 获取所有，但目前 dashboard 似乎一次性加载了所有 keys)
-    // 根据 Dashboard.vue 的 loadKeys 实现，cardApi.getAllCards() 获取了所有数据赋值给 keys
-    // 所以 props.keys 应该是全量数据
-    const allData = props.keys || []
-    
     const dataToExport = processExportData(allData)
     
     // 创建工作簿
@@ -578,6 +734,11 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const jumpPage = ref(1)
 
+watch(machineCodeSearch, () => {
+  currentPage.value = 1
+  jumpPage.value = 1
+})
+
 const newKey = reactive({
   card_type: 'time',
   count: 1,
@@ -585,7 +746,9 @@ const newKey = reactive({
   total_count: 100,
   verify_method: 'web',
   encryption_type: 'advanced',
-  allow_reverify: 1
+  allow_reverify: 1,
+  stack_time_if_same_machine: false,
+  allow_self_unbind: false
 })
 
 const editingKey = reactive({
@@ -599,19 +762,21 @@ const editingKey = reactive({
   verify_method: 'web',
   encryption_type: 'sha1',
   allow_reverify: 1,
-  machine_code: ''
+  machine_code: '',
+  allow_self_unbind: false
 })
 
 // 计算属性
-const totalItems = computed(() => props.keys?.length || 0)
-const totalPages = computed(() => Math.ceil(totalItems.value / pageSize.value))
+const totalItems = computed(() => filteredKeys.value?.length ?? 0)
+const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / pageSize.value)))
 
 // 当前页显示的数据
 const paginatedKeys = computed(() => {
-  if (!props.keys) return []
+  const list = filteredKeys.value || []
+  if (!list.length) return []
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
-  return props.keys.slice(start, end)
+  return list.slice(start, end)
 })
 
 // 可见页码计算
@@ -700,7 +865,8 @@ const getStatusText = (status) => {
   const statusMap = {
     0: '未使用',
     1: '已使用',
-    2: '已暂停'
+    2: '已暂停',
+    4: '已合并(续期)'
   }
   return statusMap[status] || status
 }
@@ -709,7 +875,8 @@ const getStatusClass = (status) => {
   const statusClassMap = {
     0: 'unused',
     1: 'used',
-    2: 'disabled'
+    2: 'disabled',
+    4: 'used'
   }
   return statusClassMap[status] || 'unknown'
 }
@@ -731,6 +898,8 @@ const createKeys = () => {
   newKey.verify_method = 'web'
   newKey.encryption_type = 'advanced'
   newKey.allow_reverify = 1
+  newKey.stack_time_if_same_machine = false
+  newKey.allow_self_unbind = false
 }
 
 const editKey = (key) => {
@@ -745,7 +914,8 @@ const editKey = (key) => {
     verify_method: key.verify_method || 'web',
     encryption_type: key.encryption_type || 'advanced',
     allow_reverify: key.allow_reverify !== undefined ? key.allow_reverify : 1,
-    machine_code: key.machine_code || ''
+    machine_code: key.machine_code || '',
+    allow_self_unbind: key.allow_self_unbind === true || key.allow_self_unbind === 1
   })
   showEditKeyModal.value = true
 }
@@ -789,10 +959,77 @@ const copyKey = async (cardKey) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 0;
   padding: 2rem;
   background: white;
   border-bottom: 1px solid #e1e5e9;
+}
+
+.keys-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  padding: 1rem 2rem 1.25rem;
+  background: white;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.toolbar-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  flex: 1;
+  min-width: 220px;
+}
+
+.toolbar-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #4a5568;
+  white-space: nowrap;
+}
+
+.toolbar-input {
+  flex: 1;
+  min-width: 200px;
+  max-width: 480px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.toolbar-input:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+}
+
+.toolbar-clear {
+  background: none;
+  border: none;
+  color: #718096;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+.toolbar-clear:hover {
+  color: #2d3748;
+  text-decoration: underline;
+}
+
+.toolbar-meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #718096;
+}
+
+.toolbar-divider {
+  margin: 0 0.35rem;
+  opacity: 0.5;
 }
 
 .header-actions {
@@ -837,6 +1074,24 @@ const copyKey = async (cardKey) => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.radio-group.horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem 1.25rem;
+}
+
+.export-scope-group {
+  margin-bottom: 1rem;
+}
+
+.export-scope-hint {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8125rem;
+  color: #718096;
+  line-height: 1.5;
 }
 
 .preview-section {
@@ -965,7 +1220,7 @@ const copyKey = async (cardKey) => {
   background: white;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin: 0 2rem 2rem;
+  margin: 1rem 2rem 2rem;
   border: 1px solid #e1e5e9;
 }
 
@@ -973,6 +1228,13 @@ const copyKey = async (cardKey) => {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+}
+
+.empty-table-hint {
+  text-align: center;
+  padding: 2.5rem 1rem !important;
+  color: #718096;
+  font-size: 0.9rem;
 }
 
 .keys-table th:nth-child(1) { width: 4%; }   /* ID */
@@ -1072,6 +1334,130 @@ const copyKey = async (cardKey) => {
   margin-top: 0.35rem;
   font-size: 0.8rem;
   color: #6b7280;
+}
+
+/* 生成卡密：同机时长叠加 — 卡片 + iOS 风格开关 */
+.stack-time-stack-group {
+  margin-bottom: 1.5rem;
+}
+
+.stack-option-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem 1.125rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.stack-option-card--active {
+  border-color: #c7d2fe;
+  background: linear-gradient(165deg, #f8faff 0%, #ffffff 55%);
+  box-shadow:
+    0 0 0 1px rgba(79, 70, 229, 0.07),
+    0 6px 20px rgba(79, 70, 229, 0.08);
+}
+
+.stack-toggle-row {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.875rem;
+  margin: 0 !important;
+  cursor: pointer;
+  font-weight: normal !important;
+  color: inherit !important;
+}
+
+.stack-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.stack-switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.stack-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #d1d5db;
+  transition: background 0.22s ease;
+}
+
+.stack-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+  transition: transform 0.22s cubic-bezier(0.34, 1.1, 0.64, 1);
+  pointer-events: none;
+}
+
+.stack-switch-input:checked + .stack-switch-track {
+  background: #4f46e5;
+}
+
+.stack-switch-input:checked + .stack-switch-track .stack-switch-thumb {
+  transform: translateX(20px);
+}
+
+.stack-switch-input:focus-visible + .stack-switch-track {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.28);
+}
+
+.stack-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.stack-toggle-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.35;
+}
+
+.stack-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #4338ca;
+  background: #e0e7ff;
+}
+
+.stack-toggle-desc {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #6b7280;
+  font-weight: 400;
 }
 
 .duration-cell {

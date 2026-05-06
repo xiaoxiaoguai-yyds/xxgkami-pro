@@ -64,15 +64,35 @@ public class ApiKeyService {
 
     @Transactional
     public void updateApiKey(Long id, String name, String description, Integer status, String webhookConfig, Boolean enableCardEncryption) {
+        updateApiKey(id, name, description, status, webhookConfig, enableCardEncryption, null, null, false, false);
+    }
+
+    /**
+     * @param updateSpecConfig 为 true 时写入 machineSpecOnceConfig（含置空）
+     * @param updateWebhookConfig 为 true 时写入 webhookConfig（含置空）；为 false 时保留库中原值
+     */
+    @Transactional
+    public void updateApiKey(Long id, String name, String description, Integer status, String webhookConfig,
+                            Boolean enableCardEncryption, Boolean requireMachineCode, String machineSpecOnceConfig,
+                            boolean updateSpecConfig, boolean updateWebhookConfig) {
         ApiKey apiKey = apiKeyMapper.findById(id);
-        if (apiKey != null) {
-            apiKey.setKeyName(name);
-            apiKey.setDescription(description);
-            apiKey.setStatus(status);
-            apiKey.setWebhookConfig(webhookConfig);
-            apiKey.setEnableCardEncryption(enableCardEncryption);
-            apiKeyMapper.update(apiKey);
+        if (apiKey == null) {
+            return;
         }
+        apiKey.setKeyName(name);
+        apiKey.setDescription(description);
+        apiKey.setStatus(status);
+        if (updateWebhookConfig) {
+            apiKey.setWebhookConfig(webhookConfig);
+        }
+        apiKey.setEnableCardEncryption(enableCardEncryption);
+        if (requireMachineCode != null) {
+            apiKey.setRequireMachineCode(requireMachineCode);
+        }
+        if (updateSpecConfig) {
+            apiKey.setMachineSpecOnceConfig(machineSpecOnceConfig);
+        }
+        apiKeyMapper.update(apiKey);
     }
 
     @Transactional

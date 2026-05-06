@@ -3,6 +3,10 @@
     <div class="section-header">
       <h2>API密钥管理</h2>
       <div class="header-actions">
+        <button type="button" class="btn-secondary" title="查看多语言调用核销接口示例" @click="openUseCardCodeModal">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          代码实例
+        </button>
         <button class="btn-secondary" @click="showDocsModal = true">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           接口文档
@@ -159,6 +163,25 @@
             <small style="color: #666; font-size: 0.8rem; display: block; margin-top: 0.2rem;">开启后，调用接口必须传入加密后的卡密，系统会自动解密验证。</small>
           </div>
 
+          <div class="form-group">
+            <label class="switch-container">
+              <div class="switch">
+                <input type="checkbox" v-model="editingKey.requireMachineCode">
+                <span class="slider round"></span>
+              </div>
+              <span class="switch-text">核销时强制传入机器码</span>
+            </label>
+            <small style="color: #666; font-size: 0.8rem; display: block; margin-top: 0.2rem;">开启后客户端必须在核销接口中附带 machine_code，避免未绑定机器前被多台设备抢先使用。</small>
+          </div>
+
+          <div class="form-group">
+            <label>同机同规格仅一次（JSON）</label>
+            <textarea v-model="editingKey.machineSpecOnceConfig" rows="5" placeholder='例如：{"enabled":true,"rules":[{"card_type":"time","duration":1}]}'></textarea>
+            <small style="color: #666; font-size: 0.8rem; display: block; margin-top: 0.2rem;">
+              匹配的卡类型+规格在本密钥下每台机器码仅可成功核销一次。可写自定义 spec_key 精确指定一条规则。留空表示不启用；保存空内容将清空配置。
+            </small>
+          </div>
+
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showEditModal = false">取消</button>
@@ -181,6 +204,7 @@
         </div>
         <div class="modal-body">
           <div class="card-codes-header">
+            <div class="card-codes-toolbar">
             <div class="form-group inline">
               <label>生成数量</label>
               <input type="number" v-model="newCardCodeCount" min="1" max="100" placeholder="1-100" />
@@ -201,10 +225,40 @@
               <label>{{ newCardCodeType === 'time' ? '有效期（天）' : '使用次数' }}</label>
               <input type="number" v-model="newCardCodeValue" min="1" max="9999" :placeholder="newCardCodeType === 'time' ? '30' : '100'" />
             </div>
-            <button class="btn-primary" @click="generateCardCodes">
+            <button class="btn-primary card-codes-generate-btn" @click="generateCardCodes">
               <i class="fas fa-plus"></i>
               生成卡密
             </button>
+            </div>
+
+            <div class="stack-time-stack-group api-exclusive-stack" v-if="newCardCodeType === 'time'">
+              <div
+                class="stack-option-card"
+                :class="{ 'stack-option-card--active': newCardStackTime }"
+              >
+                <label class="stack-toggle-row">
+                  <span class="stack-switch">
+                    <input
+                      type="checkbox"
+                      v-model="newCardStackTime"
+                      class="stack-switch-input"
+                    />
+                    <span class="stack-switch-track">
+                      <span class="stack-switch-thumb"></span>
+                    </span>
+                  </span>
+                  <span class="stack-toggle-copy">
+                    <span class="stack-toggle-title">
+                      同机时长叠加（续期）
+                      <span v-if="newCardStackTime" class="stack-toggle-pill">已开启</span>
+                    </span>
+                    <span class="stack-toggle-desc">
+                      同一机器码上若已有未过期时间卡，激活本卡时将天数累加到原卡到期时间（本卡标记为「已合并」）；关闭则每次仍从激活时刻重新起算。
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
           
           <div class="card-codes-list">
@@ -348,12 +402,6 @@
                     <td>要使用的卡密</td>
                   </tr>
                   <tr>
-                    <td>device_id</td>
-                    <td>否</td>
-                    <td>String</td>
-                    <td>设备标识</td>
-                  </tr>
-                  <tr>
                     <td>machine_code</td>
                     <td>否</td>
                     <td>String</td>
@@ -381,23 +429,90 @@
       </div>
     </div>
 
+    <!-- 核销接口多语言代码示例 -->
+    <div v-if="showUseCardCodeModal" class="modal-overlay" @click="showUseCardCodeModal = false">
+      <div class="modal-content large-modal code-examples-modal" @click.stop>
+        <div class="modal-header">
+          <h3>核销接口代码实例（use_card）</h3>
+          <button type="button" class="close-btn" @click="showUseCardCodeModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body code-examples-body">
+          <p class="code-examples-intro">{{ useCardCodeIntroText }}</p>
+          <p class="code-examples-hint">
+            当前环境 API 根路径参考：<code>{{ apiBaseUrlHint }}</code>
+            — 请将各示例中的 <code>BASE_URL</code> 换为此值（勿以 <code>/</code> 结尾）。
+          </p>
+          <div class="code-examples-layout">
+            <aside class="code-examples-lang" aria-label="语言列表">
+              <button
+                v-for="ex in API_USE_CARD_EXAMPLES"
+                :key="ex.id"
+                type="button"
+                class="code-lang-btn"
+                :class="{ active: selectedUseCardExampleId === ex.id }"
+                @click="selectedUseCardExampleId = ex.id"
+              >
+                {{ ex.label }}
+              </button>
+            </aside>
+            <div class="code-examples-panel">
+              <div class="code-examples-toolbar-inner">
+                <span class="code-examples-lang-title">{{ currentUseCardExample?.label }}</span>
+                <button type="button" class="btn-primary btn-code-copy" @click="copyUseCardExampleCode">
+                  复制代码
+                </button>
+              </div>
+              <pre class="code-block code-examples-pre"><code class="hljs" v-html="highlightedUseCardCodeHtml"></code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Interface Settings Modal -->
     <div v-if="showInterfaceModal" class="modal-overlay" @click="showInterfaceModal = false">
       <div class="modal-content large-modal" @click.stop>
         <div class="modal-header">
           <h3>{{ currentApiKey.name }} - 接口回调设置</h3>
-          <button class="close-btn" @click="showInterfaceModal = false">
-            <i class="fas fa-times"></i>
-          </button>
+          <div class="modal-header-right">
+            <button type="button" class="btn-doc" @click.stop="toggleInterfaceDocPanel" title="查看配置说明">
+              <i class="fas fa-book"></i> 文档
+            </button>
+            <button class="close-btn" @click="showInterfaceModal = false">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
         </div>
         <div class="modal-body">
           <div class="interface-settings">
             <div class="form-group">
                <label>回调 URL (Webhook)</label>
-               <div class="url-config-header">
-                 <label class="switch-label">
-                   <input type="checkbox" v-model="interfaceConfig.isCustomUrl" />
-                   <span>自定义 URL</span>
+               <div
+                 class="stack-option-card webhook-url-toggle-card"
+                 :class="{ 'stack-option-card--active': interfaceConfig.isCustomUrl }"
+               >
+                 <label class="stack-toggle-row">
+                   <span class="stack-switch">
+                     <input
+                       type="checkbox"
+                       v-model="interfaceConfig.isCustomUrl"
+                       class="stack-switch-input"
+                     />
+                     <span class="stack-switch-track">
+                       <span class="stack-switch-thumb"></span>
+                     </span>
+                   </span>
+                   <span class="stack-toggle-copy">
+                     <span class="stack-toggle-title">
+                       自定义回调 URL
+                       <span v-if="interfaceConfig.isCustomUrl" class="stack-toggle-pill">已开启</span>
+                     </span>
+                     <span class="stack-toggle-desc">
+                       开启后可手动填写 Webhook 地址；关闭后由系统根据当前环境自动生成默认回调 URL。
+                     </span>
+                   </span>
                  </label>
                </div>
                <input type="text" v-model="interfaceConfig.url" :disabled="!interfaceConfig.isCustomUrl" :placeholder="interfaceConfig.isCustomUrl ? 'http://your-server.com/callback' : '系统将自动生成回调 URL'" />
@@ -583,6 +698,74 @@
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="showInterfaceModal && interfaceDocVisible"
+        ref="interfaceDocPanelRef"
+        class="interface-doc-panel"
+        :class="{ 'interface-doc-panel--fullscreen': interfaceDocFullscreen }"
+        :style="interfaceDocPanelStyle"
+      >
+        <div class="interface-doc-header" @mousedown="startDocPanelDrag">
+          <span class="interface-doc-title">接口回调配置说明</span>
+          <div class="interface-doc-toolbar" @mousedown.stop>
+            <button type="button" class="interface-doc-tool-btn" @click="toggleDocFullscreen" :title="interfaceDocFullscreen ? '退出全屏' : '全屏'">
+              <i :class="interfaceDocFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i>
+            </button>
+            <button type="button" class="interface-doc-tool-btn" @click="closeInterfaceDocPanel" title="关闭">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+        <div class="interface-doc-body">
+          <div class="interface-doc-callout">
+            <strong>新手提示：</strong>绝大多数场景下<strong>无需修改</strong>系统自动生成的<strong>回调 URL</strong>与默认的<strong>请求方式（GET）</strong>。仅在您的业务有特殊要求时，再调整请求方式或开启「自定义回调 URL」填写自有地址。
+          </div>
+
+          <section class="interface-doc-section">
+            <h4>一、自定义参数配置（输入）</h4>
+            <p>定义系统在核销成功后，向您的 Webhook 发起请求时<strong>附带哪些查询参数（GET）或表单/JSON 字段（POST）</strong>。</p>
+            <ul>
+              <li><strong>参数名</strong>：对方接口约定的 key，例如 <code>token</code>、<code>cdkey</code>。</li>
+              <li><strong>值类型 · 固定值</strong>：每次请求都传同一个字符串，适合固定密钥等。</li>
+              <li><strong>值类型 · 系统变量</strong>：由本系统自动填充，例如卡密 <code>card_key</code>、API Key、机器码 <code>machine_code</code>、剩余时间/次数等。</li>
+              <li>使用「上移 / 下移」可调整参数顺序；GET 请求下参数会按顺序拼接到 URL 查询串。</li>
+            </ul>
+          </section>
+
+          <section class="interface-doc-section">
+            <h4>二、自定义返回配置（JSON）</h4>
+            <p>用于定义当您的接口<strong>返回给客户端</strong>时，JSON 里各字段如何由系统变量或固定值组成（与下方「实时返回预览」一致）。</p>
+            <ul>
+              <li><strong>字段名 (Key)</strong>：返回 JSON 中的属性名，如 <code>success</code>、<code>msg</code>、<code>code</code>。</li>
+              <li><strong>系统变量</strong>：将核销结果映射到字段，例如成功标识、提示信息、状态码、剩余时间、卡密类型等。</li>
+              <li>请至少保留能表达「成功 / 失败」的字段，并与<strong>状态码配置</strong>中的逻辑一致，便于客户端判断。</li>
+            </ul>
+          </section>
+
+          <section class="interface-doc-section">
+            <h4>三、状态码配置（Status Codes）</h4>
+            <p>为各类业务结果指定<strong>数字状态码</strong>（会映射到变量 <code>status_code</code>，供自定义返回 JSON 使用）。</p>
+            <ul>
+              <li>每一行对应一种场景（如验证成功、卡密不存在、已过期、机器码不匹配等）。</li>
+              <li>修改「状态码 (Value)」即可；若不确定，可点击「恢复默认」还原推荐值。</li>
+              <li>请在「自定义返回配置」中选用变量 <code>status_code</code>，与这里配置保持一致，客户端才能正确分支。</li>
+            </ul>
+          </section>
+
+          <section class="interface-doc-section interface-doc-muted">
+            <p>拖动顶部标题栏可移动窗口；拖动右下角斜线区域可调整大小；全屏后便于阅读长文档，再次点击可还原并回到右下角默认尺寸。</p>
+          </section>
+        </div>
+        <div
+          v-if="!interfaceDocFullscreen"
+          class="interface-doc-resize"
+          @mousedown.stop.prevent="startDocPanelResize"
+          title="拖动调整大小"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -591,6 +774,9 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { apiKeyApi, cardApi } from '../services/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { copyToClipboard } from '../utils/clipboard.js'
+import { highlightUseCardExample } from '../utils/useCardCodeHighlight.js'
+import { API_USE_CARD_INTRO, API_USE_CARD_EXAMPLES } from '../data/apiUseCardCodeExamples.js'
+import 'highlight.js/styles/github-dark.css'
 
 const props = defineProps({
   // apiKeys: Array, // No longer props, fetched internally
@@ -609,6 +795,8 @@ const allUsers = ref([])
 const showEditModal = ref(false)
 const showCreateModal = ref(false)
 const showDocsModal = ref(false)
+const showUseCardCodeModal = ref(false)
+const selectedUseCardExampleId = ref(API_USE_CARD_EXAMPLES[0]?.id ?? 'curl')
 const showInterfaceModal = ref(false)
 const showCardCodesModal = ref(false)
 const showUsersModal = ref(false)
@@ -617,6 +805,187 @@ const selectedUserId = ref('')
 const newCardCodeCount = ref(10)
 const newCardCodeType = ref('time')
 const newCardCodeValue = ref(30) // duration or count
+const newCardStackTime = ref(false)
+
+/** 接口回调设置 — 右下角可拖动/缩放/全屏的说明面板 */
+const interfaceDocVisible = ref(false)
+const interfaceDocFullscreen = ref(false)
+const interfaceDocPanelRef = ref(null)
+const docPanelLayout = reactive({
+  x: null,
+  y: null,
+  w: 440,
+  h: 420
+})
+
+const apiBaseUrlHint = computed(() => {
+  const raw = import.meta.env?.VITE_API_BASE_URL
+  let base = typeof raw === 'string' && raw.trim() ? raw.trim() : '/api'
+  base = base.replace(/\/+$/, '')
+  if (base.startsWith('http://') || base.startsWith('https://')) {
+    return base
+  }
+  if (typeof window !== 'undefined') {
+    const prefix = base.startsWith('/') ? base : `/${base}`
+    return `${window.location.origin}${prefix}`
+  }
+  return base
+})
+
+const useCardCodeIntroText = computed(() =>
+  API_USE_CARD_INTRO.replace(/\{BASE_URL\}/g, apiBaseUrlHint.value)
+)
+
+const currentUseCardExample = computed(
+  () =>
+    API_USE_CARD_EXAMPLES.find((e) => e.id === selectedUseCardExampleId.value) ?? API_USE_CARD_EXAMPLES[0]
+)
+
+const highlightedUseCardCodeHtml = computed(() => {
+  const ex = currentUseCardExample.value
+  if (!ex?.code) return ''
+  return highlightUseCardExample(ex.code, ex.id)
+})
+
+function openUseCardCodeModal() {
+  selectedUseCardExampleId.value = API_USE_CARD_EXAMPLES[0]?.id ?? 'curl'
+  showUseCardCodeModal.value = true
+}
+
+async function copyUseCardExampleCode() {
+  const code = currentUseCardExample.value?.code
+  if (!code) return
+  const ok = await copyToClipboard(code)
+  if (ok) ElMessage.success('代码已复制')
+  else ElMessage.error('复制失败')
+}
+
+watch(showInterfaceModal, (open) => {
+  if (!open) {
+    interfaceDocVisible.value = false
+    interfaceDocFullscreen.value = false
+    docPanelLayout.x = null
+    docPanelLayout.y = null
+    docPanelLayout.w = 440
+    docPanelLayout.h = 420
+  }
+})
+
+const interfaceDocPanelStyle = computed(() => {
+  if (interfaceDocFullscreen.value) {
+    return {
+      position: 'fixed',
+      left: '0',
+      top: '0',
+      width: '100vw',
+      height: '100vh',
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      zIndex: '10050'
+    }
+  }
+  const base = {
+    position: 'fixed',
+    width: `${docPanelLayout.w}px`,
+    height: `${docPanelLayout.h}px`,
+    zIndex: '10050',
+    minWidth: '300px',
+    minHeight: '220px'
+  }
+  if (docPanelLayout.x != null && docPanelLayout.y != null) {
+    return {
+      ...base,
+      left: `${docPanelLayout.x}px`,
+      top: `${docPanelLayout.y}px`,
+      right: 'auto',
+      bottom: 'auto'
+    }
+  }
+  return {
+    ...base,
+    right: '24px',
+    bottom: '24px',
+    left: 'auto',
+    top: 'auto'
+  }
+})
+
+function toggleInterfaceDocPanel() {
+  interfaceDocVisible.value = !interfaceDocVisible.value
+}
+
+function closeInterfaceDocPanel() {
+  interfaceDocVisible.value = false
+}
+
+function toggleDocFullscreen() {
+  interfaceDocFullscreen.value = !interfaceDocFullscreen.value
+  if (!interfaceDocFullscreen.value) {
+    docPanelLayout.x = null
+    docPanelLayout.y = null
+    docPanelLayout.w = 440
+    docPanelLayout.h = 420
+  }
+}
+
+function startDocPanelDrag(e) {
+  if (interfaceDocFullscreen.value) return
+  if (e.button !== 0) return
+  const el = interfaceDocPanelRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  if (docPanelLayout.x == null || docPanelLayout.y == null) {
+    docPanelLayout.x = rect.left
+    docPanelLayout.y = rect.top
+  }
+  const sx = e.clientX
+  const sy = e.clientY
+  const ox = docPanelLayout.x
+  const oy = docPanelLayout.y
+  const onMove = (ev) => {
+    let nx = ox + ev.clientX - sx
+    let ny = oy + ev.clientY - sy
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const w = Math.min(docPanelLayout.w, vw)
+    nx = Math.min(Math.max(0, nx), Math.max(0, vw - w))
+    ny = Math.min(Math.max(0, ny), Math.max(0, vh - 48))
+    docPanelLayout.x = nx
+    docPanelLayout.y = ny
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+  e.preventDefault()
+}
+
+function startDocPanelResize(e) {
+  if (interfaceDocFullscreen.value) return
+  const el = interfaceDocPanelRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  if (docPanelLayout.x == null || docPanelLayout.y == null) {
+    docPanelLayout.x = rect.left
+    docPanelLayout.y = rect.top
+  }
+  const sw = docPanelLayout.w
+  const sh = docPanelLayout.h
+  const sx = e.clientX
+  const sy = e.clientY
+  const onMove = (ev) => {
+    docPanelLayout.w = Math.max(300, sw + ev.clientX - sx)
+    docPanelLayout.h = Math.max(220, sh + ev.clientY - sy)
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
 
 const interfaceConfig = reactive({
   url: '',
@@ -632,6 +1001,10 @@ const interfaceConfig = reactive({
     { key: 'no_count', label: '次数已用尽', value: '403' },
     { key: 'machine_code_mismatch', label: '机器码不匹配', value: '406' },
     { key: 'reverify_denied', label: '不允许重复验证', value: '407' },
+    { key: 'machine_code_required', label: '需提供机器码', value: '408' },
+    { key: 'spec_once_used', label: '同机同规格已用', value: '409' },
+    { key: 'merged', label: '卡密已合并续期', value: '410' },
+    { key: 'spec_once_concurrency', label: '核销冲突', value: '411' },
     { key: 'error', label: '其他错误', value: '500' }
   ]
 })
@@ -656,7 +1029,10 @@ const editingKey = reactive({
   id: null,
   name: '',
   description: '',
-  enableCardEncryption: false
+  isActive: true,
+  enableCardEncryption: false,
+  requireMachineCode: false,
+  machineSpecOnceConfig: ''
 })
 
 const newApiKey = reactive({
@@ -679,7 +1055,7 @@ const fetchApiKeys = async () => {
            cardCodes = cardsRes.data.map(c => ({
               id: c.id,
               code: c.card_key,
-              status: c.status === 0 ? 'unused' : 'used',
+              status: c.status === 0 ? 'unused' : (c.status === 4 ? 'merged' : 'used'),
               expiryDate: c.expire_time,
               type: c.card_type === 'time' ? '时间卡' : '次数卡',
               value: c.card_type === 'time' ? `${c.duration}天` : `${c.total_count}次`,
@@ -702,7 +1078,9 @@ const fetchApiKeys = async () => {
         cardCodes: cardCodes, 
         webhookConfig: key.webhook_config ? JSON.parse(key.webhook_config) : null,
         assignedUsers: key.assignedUsers || [],
-        enableCardEncryption: key.enable_card_encryption || false
+        enableCardEncryption: key.enable_card_encryption || false,
+        requireMachineCode: key.require_machine_code || false,
+        machineSpecOnceConfig: key.machine_spec_once_config || ''
       }
     }))
   } catch (error) {
@@ -747,8 +1125,10 @@ const saveApiKey = async () => {
     await apiKeyApi.updateApiKey(editingKey.id, {
       name: editingKey.name,
       description: editingKey.description,
-      status: editingKey.isActive ? 1 : 0, // Preserve status if we had it in editingKey
-      enable_card_encryption: editingKey.enableCardEncryption
+      status: editingKey.isActive ? 1 : 0,
+      enable_card_encryption: editingKey.enableCardEncryption,
+      require_machine_code: editingKey.requireMachineCode,
+      machine_spec_once_config: editingKey.machineSpecOnceConfig || ''
     })
     ElMessage.success('保存成功')
     
@@ -758,6 +1138,8 @@ const saveApiKey = async () => {
       apiKeys.value[keyIndex].name = editingKey.name
       apiKeys.value[keyIndex].description = editingKey.description
       apiKeys.value[keyIndex].enableCardEncryption = editingKey.enableCardEncryption
+      apiKeys.value[keyIndex].requireMachineCode = editingKey.requireMachineCode
+      apiKeys.value[keyIndex].machineSpecOnceConfig = editingKey.machineSpecOnceConfig
     }
     
     showEditModal.value = false
@@ -793,7 +1175,8 @@ const toggleApiKey = async (apiKey) => {
     await apiKeyApi.updateApiKey(apiKey.id, {
       name: apiKey.name,
       description: apiKey.description,
-      status: newStatus ? 1 : 0
+      status: newStatus ? 1 : 0,
+      enable_card_encryption: apiKey.enableCardEncryption
     })
     apiKey.isActive = newStatus
     ElMessage.success(newStatus ? '已启用' : '已禁用')
@@ -885,7 +1268,8 @@ const generateCardCodes = async () => {
       verify_method: 'web',
       encryption_type: 'advanced',
       allow_reverify: 1,
-      api_key_id: currentApiKey.value.id
+      api_key_id: currentApiKey.value.id,
+      stack_time_if_same_machine: newCardCodeType.value === 'time' && newCardStackTime.value
     })
     
     ElMessage.success(`成功生成 ${res.data.length} 个卡密`)
@@ -962,6 +1346,7 @@ const getCardCodeStatusText = (status) => {
   const map = {
     'unused': '未使用',
     'used': '已使用',
+    'merged': '已合并续期',
     'expired': '已过期'
   }
   return map[status] || status
@@ -1025,7 +1410,7 @@ const openInterfaceSettings = (apiKey) => {
       { key: 'no_count', label: '次数已用尽', value: '403' },
       { key: 'error', label: '其他错误', value: '500' }
     ]
-    interfaceConfig.isCustomUrl = false 
+    interfaceConfig.isCustomUrl = true
     interfaceConfig.url = generateDefaultUrl()
   }
   showInterfaceModal.value = true
@@ -1082,6 +1467,10 @@ const restoreDefaultStatusCodes = () => {
     { key: 'no_count', label: '次数已用尽', value: '403' },
     { key: 'machine_code_mismatch', label: '机器码不匹配', value: '406' },
     { key: 'reverify_denied', label: '不允许重复验证', value: '407' },
+    { key: 'machine_code_required', label: '需提供机器码', value: '408' },
+    { key: 'spec_once_used', label: '同机同规格已用', value: '409' },
+    { key: 'merged', label: '卡密已合并续期', value: '410' },
+    { key: 'spec_once_concurrency', label: '核销冲突', value: '411' },
     { key: 'error', label: '其他错误', value: '500' }
   ]
 }
@@ -1261,7 +1650,9 @@ const editApiKey = (apiKey) => {
   editingKey.name = apiKey.name
   editingKey.description = apiKey.description
   editingKey.enableCardEncryption = apiKey.enableCardEncryption
-  editingKey.isActive = apiKey.isActive // Preserve status when editing
+  editingKey.requireMachineCode = apiKey.requireMachineCode || false
+  editingKey.machineSpecOnceConfig = apiKey.machineSpecOnceConfig || ''
+  editingKey.isActive = apiKey.isActive
   showEditModal.value = true
 }
 
@@ -1438,6 +1829,138 @@ const copyPreviewUrl = async () => {
   width: 100%;
   box-sizing: border-box;
   overflow-x: auto;
+}
+
+.code-examples-modal {
+  max-width: min(960px, 96vw);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  max-height: 86vh;
+}
+
+.code-examples-body {
+  padding: 1rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.code-examples-intro {
+  white-space: pre-line;
+  margin: 0 0 0.65rem;
+  color: #374151;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.code-examples-hint {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.code-examples-hint code {
+  background: #f1f5f9;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.code-examples-layout {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.code-examples-lang {
+  flex: 0 0 11.5rem;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 0.5rem;
+  margin-right: 0.25rem;
+  border-right: 1px solid #e5e7eb;
+}
+
+.code-lang-btn {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #334155;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.code-lang-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.code-lang-btn.active {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+  color: #3730a3;
+  font-weight: 600;
+}
+
+.code-examples-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.code-examples-toolbar-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  flex-shrink: 0;
+}
+
+.code-examples-lang-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-code-copy {
+  flex-shrink: 0;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+}
+
+.code-examples-pre {
+  flex: 1;
+  min-height: 180px;
+  max-height: min(52vh, 420px);
+  margin: 0;
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.code-examples-pre code.hljs {
+  display: block;
+  padding: 0;
+  background: transparent !important;
+  overflow: visible;
 }
 
 .section-header {
@@ -1846,21 +2369,162 @@ const copyPreviewUrl = async () => {
 /* 卡密管理样式 */
 .card-codes-header {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
-  align-items: end;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #e9ecef;
 }
 
+.card-codes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.card-codes-generate-btn {
+  flex-shrink: 0;
+}
+
 .form-group.inline {
   margin-bottom: 0;
   flex: 1;
+  min-width: 120px;
 }
 
 .form-group.inline input,
 .form-group.inline select {
   width: 100%;
+}
+
+/* 专属卡密：与 KeysManagePage 统一的「同机时长叠加」卡片开关 */
+.stack-time-stack-group.api-exclusive-stack {
+  margin-bottom: 0;
+}
+
+.stack-option-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem 1.125rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.stack-option-card--active {
+  border-color: #c7d2fe;
+  background: linear-gradient(165deg, #f8faff 0%, #ffffff 55%);
+  box-shadow:
+    0 0 0 1px rgba(79, 70, 229, 0.07),
+    0 6px 20px rgba(79, 70, 229, 0.08);
+}
+
+.stack-toggle-row {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.875rem;
+  margin: 0 !important;
+  cursor: pointer;
+  font-weight: normal !important;
+  color: inherit !important;
+}
+
+.stack-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.stack-switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.stack-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #d1d5db;
+  transition: background 0.22s ease;
+}
+
+.stack-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+  transition: transform 0.22s cubic-bezier(0.34, 1.1, 0.64, 1);
+  pointer-events: none;
+}
+
+.stack-switch-input:checked + .stack-switch-track {
+  background: #4f46e5;
+}
+
+.stack-switch-input:checked + .stack-switch-track .stack-switch-thumb {
+  transform: translateX(20px);
+}
+
+.stack-switch-input:focus-visible + .stack-switch-track {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.28);
+}
+
+.stack-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.stack-toggle-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.35;
+}
+
+.stack-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #4338ca;
+  background: #e0e7ff;
+}
+
+.stack-toggle-desc {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+/* 接口回调设置：自定义 URL 开关与表单项间距 */
+.webhook-url-toggle-card {
+  margin-bottom: 0.75rem;
 }
 
 /* 必填字段样式 */
@@ -2106,10 +2770,14 @@ const copyPreviewUrl = async () => {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .card-codes-header,
+  .card-codes-toolbar,
   .users-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .card-codes-generate-btn {
+    width: 100%;
   }
   
   .card-code-item,
@@ -2517,5 +3185,166 @@ input:checked + .slider:before {
   font-size: 0.9rem;
   word-break: break-all;
   white-space: pre-wrap;
+}
+
+.modal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-doc:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.interface-doc-panel {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.interface-doc-panel--fullscreen {
+  border-radius: 0;
+  border: none;
+}
+
+.interface-doc-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.75rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid #e2e8f0;
+  cursor: move;
+  user-select: none;
+}
+
+.interface-doc-panel--fullscreen .interface-doc-header {
+  cursor: default;
+}
+
+.interface-doc-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1e293b;
+}
+
+.interface-doc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.interface-doc-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.interface-doc-tool-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.interface-doc-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem 1.1rem 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #334155;
+}
+
+.interface-doc-callout {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  color: #1e40af;
+}
+
+.interface-doc-section {
+  margin-bottom: 1.1rem;
+}
+
+.interface-doc-section h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.interface-doc-section p {
+  margin: 0 0 0.5rem;
+}
+
+.interface-doc-section ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.interface-doc-section li {
+  margin-bottom: 0.35rem;
+}
+
+.interface-doc-section code {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.35rem;
+  background: #f1f5f9;
+  border-radius: 4px;
+  color: #0f172a;
+}
+
+.interface-doc-muted {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.interface-doc-muted p {
+  margin: 0;
+}
+
+.interface-doc-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, #cbd5e1 50%, #cbd5e1 55%, transparent 55%, transparent 65%, #cbd5e1 65%, #cbd5e1 70%, transparent 70%);
+  opacity: 0.85;
 }
 </style>

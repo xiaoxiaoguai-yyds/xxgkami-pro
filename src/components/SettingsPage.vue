@@ -312,6 +312,28 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 进入系统设置时的支付/站点地址提示（可勾选「不再提示」） -->
+    <el-dialog
+      v-model="showSiteUrlPaymentTip"
+      title="提示"
+      width="480px"
+      append-to-body
+      align-center
+      class="site-url-tip-dialog"
+      @closed="onSiteUrlPaymentTipClosed"
+    >
+      <p class="site-url-tip-text">
+        若需要配置支付系统，请及时完善站点地址，站点地址请勿以/结尾。
+      </p>
+      <label class="site-url-tip-check">
+        <input v-model="dismissSiteUrlTipForever" type="checkbox" />
+        <span>后续不再提示</span>
+      </label>
+      <template #footer>
+        <el-button type="primary" @click="showSiteUrlPaymentTip = false">我知道了</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -325,6 +347,19 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['save-settings', 'clear-cache', 'clear-logs', 'create-backup'])
+
+const SITE_URL_PAYMENT_TIP_KEY = 'xxgkami_settings_site_url_payment_tip_dismissed'
+
+// 支付相关：站点地址提示弹窗
+const showSiteUrlPaymentTip = ref(false)
+const dismissSiteUrlTipForever = ref(false)
+
+function onSiteUrlPaymentTipClosed() {
+  if (dismissSiteUrlTipForever.value) {
+    localStorage.setItem(SITE_URL_PAYMENT_TIP_KEY, '1')
+  }
+  dismissSiteUrlTipForever.value = false
+}
 
 // TOTP State
 const showTotpDialog = ref(false)
@@ -626,6 +661,10 @@ const showToast = (message, type = 'info') => {
 // 初始化数据
 onMounted(async () => {
   await loadSettings()
+  if (localStorage.getItem(SITE_URL_PAYMENT_TIP_KEY) !== '1') {
+    dismissSiteUrlTipForever.value = false
+    showSiteUrlPaymentTip.value = true
+  }
 })
 </script>
 
@@ -1048,5 +1087,28 @@ input:checked + .slider:before {
 
   .settings-grid.single-column {
     grid-template-columns: 1fr;
+  }
+
+  .site-url-tip-text {
+    margin: 0 0 1rem;
+    line-height: 1.65;
+    color: #374151;
+    font-size: 0.9375rem;
+  }
+
+  .site-url-tip-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #4b5563;
+    user-select: none;
+  }
+
+  .site-url-tip-check input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #2563eb;
   }
 </style>

@@ -552,6 +552,26 @@ export const cardApi = {
       method: 'PATCH',
       body: JSON.stringify({ status })
     });
+  },
+
+  /**
+   * 公开页：查询卡密是否已绑定机器码（无需登录）
+   */
+  async publicMachineBindQuery(cardKey) {
+    return await apiRequest('/public/cards/machine-bind/query', {
+      method: 'POST',
+      body: JSON.stringify({ card_key: cardKey })
+    });
+  },
+
+  /**
+   * 公开页：解绑机器码与设备 ID（无需登录，须已绑定）
+   */
+  async publicMachineUnbind(cardKey) {
+    return await apiRequest('/public/cards/machine-bind/unbind', {
+      method: 'POST',
+      body: JSON.stringify({ card_key: cardKey })
+    });
   }
 };
 

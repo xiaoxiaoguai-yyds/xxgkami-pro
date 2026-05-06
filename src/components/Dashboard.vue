@@ -1,11 +1,12 @@
 <template>
-  <div class="dashboard">
+  <div class="dashboard" :class="{ 'dashboard-sidebar-collapsed': sidebarCollapsed }">
     <!-- 导航栏组件 -->
     <NavigationBar 
       :user-info="userInfo"
       :active-tab="activeTab"
       @tab-change="handleTabChange"
       @logout="handleLogout"
+      @collapse-change="handleSidebarCollapse"
     />
 
     <!-- 卡密创建进度条 -->
@@ -134,6 +135,12 @@ const emit = defineEmits(['logout'])
 
 // 响应式数据
 const activeTab = ref('overview')
+/** 与 NavigationBar 折叠状态同步，用于主区域 padding 动画 */
+const sidebarCollapsed = ref(false)
+
+const handleSidebarCollapse = (collapsed) => {
+  sidebarCollapsed.value = collapsed
+}
 const currentSlide = ref(0)
 
 const stats = reactive({
@@ -429,8 +436,14 @@ onMounted(async () => {
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-  padding-top: 64px;
+  flex-direction: row;
+  padding-left: 220px;
+  transition: padding-left 0.3s ease;
+  box-sizing: border-box;
+}
+
+.dashboard.dashboard-sidebar-collapsed {
+  padding-left: 64px;
 }
 
 .dashboard-main {
@@ -443,28 +456,43 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
+  .dashboard,
+  .dashboard.dashboard-sidebar-collapsed {
+    padding-left: 64px;
+  }
+
   .dashboard-main {
     padding: 1rem;
-    padding-top: 1rem;
   }
 }
 
 /* 创建进度条 */
 .create-progress-bar {
   position: fixed;
-  top: 64px;
-  left: 0;
+  top: 0;
+  left: 220px;
   right: 0;
   z-index: 999;
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   animation: slideDown 0.3s ease;
+  transition: left 0.3s ease;
+}
+
+.dashboard.dashboard-sidebar-collapsed .create-progress-bar {
+  left: 64px;
 }
 
 @keyframes slideDown {
   from { transform: translateY(-100%); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .create-progress-bar {
+    left: 64px;
+  }
 }
 
 .progress-content {

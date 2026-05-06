@@ -66,7 +66,9 @@ public class CardController {
                 creatorType,
                 adminId,
                 adminName,
-                request.getApiKeyId()
+                request.getApiKeyId(),
+                Boolean.TRUE.equals(request.getStackTimeIfSameMachine()),
+                Boolean.TRUE.equals(request.getAllowSelfUnbind())
             );
             return ResponseEntity.ok(Map.of("success", true, "data", cards));
         } catch (Exception e) {
@@ -260,6 +262,14 @@ public class CardController {
         @JsonProperty("api_key_id")
         private Long apiKeyId;
 
+        /** 时间卡：同机器码上续期时是否将本卡时长叠加到未过期的原时间卡上 */
+        @JsonProperty("stack_time_if_same_machine")
+        private Boolean stackTimeIfSameMachine;
+
+        /** 是否允许用户在首页自助解绑设备（机器码） */
+        @JsonProperty("allow_self_unbind")
+        private Boolean allowSelfUnbind;
+
         // Getters and Setters
         public int getCount() { return count; }
         public void setCount(int count) { this.count = count; }
@@ -284,5 +294,11 @@ public class CardController {
 
         public Long getApiKeyId() { return apiKeyId; }
         public void setApiKeyId(Long apiKeyId) { this.apiKeyId = apiKeyId; }
+
+        public Boolean getStackTimeIfSameMachine() { return stackTimeIfSameMachine; }
+        public void setStackTimeIfSameMachine(Boolean stackTimeIfSameMachine) { this.stackTimeIfSameMachine = stackTimeIfSameMachine; }
+
+        public Boolean getAllowSelfUnbind() { return allowSelfUnbind; }
+        public void setAllowSelfUnbind(Boolean allowSelfUnbind) { this.allowSelfUnbind = allowSelfUnbind; }
     }
 }

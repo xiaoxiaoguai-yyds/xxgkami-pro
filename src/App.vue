@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import HomePage from './components/HomePage.vue'
+import OnlineUnbindPage from './components/OnlineUnbindPage.vue'
 import LoginForm from './components/loginform.vue'
 import Dashboard from './components/Dashboard.vue'
 import UserPage from './components/UserPage.vue'
@@ -254,7 +255,7 @@ onMounted(async () => {
 <template>
   <div id="app">
     <!-- 系统维护遮罩层 -->
-    <div v-if="maintenanceData && maintenanceData.enabled && (!isLoggedIn || userInfo?.role !== 'admin') && currentPage !== 'login' && currentPage !== 'dashboard'" class="maintenance-overlay">
+    <div v-if="maintenanceData && maintenanceData.enabled && (!isLoggedIn || userInfo?.role !== 'admin') && currentPage !== 'login' && currentPage !== 'dashboard' && currentPage !== 'online-unbind'" class="maintenance-overlay">
       <div class="maintenance-content">
         <div class="maintenance-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -282,6 +283,13 @@ onMounted(async () => {
     <!-- 首页 -->
     <HomePage 
       v-else-if="currentPage === 'home'" 
+      @show-login="showLogin"
+      @go-online-unbind="currentPage = 'online-unbind'"
+    />
+
+    <OnlineUnbindPage
+      v-else-if="currentPage === 'online-unbind'"
+      @back-home="currentPage = 'home'"
       @show-login="showLogin"
     />
     

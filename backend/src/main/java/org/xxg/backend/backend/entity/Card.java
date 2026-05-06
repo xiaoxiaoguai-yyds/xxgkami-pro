@@ -15,7 +15,7 @@ public class Card {
     @JsonProperty("encrypted_key")
     private String encryptedKey;
     
-    private Integer status; // 0:未使用 1:已使用 2:已暂停(管理员)
+    private Integer status; // 0:未使用 1:已使用 2:已暂停(管理员) 4:已合并(时间卡续期到其它卡)
     
     @JsonProperty("create_time")
     private LocalDateTime createTime;
@@ -66,6 +66,18 @@ public class Card {
 
     @JsonProperty("machine_code")
     private String machineCode;
+
+    /** true：同机器码上若已有未过期时间卡，核销本卡时将时长叠加到该卡的到期时间（单张=false 时沿用现行「从当前时刻起算」逻辑） */
+    @JsonProperty("stack_time_if_same_machine")
+    private Boolean stackTimeIfSameMachine;
+
+    /** true：允许持卡用户在首页「在线解绑」自助清空机器码与设备绑定 */
+    @JsonProperty("allow_self_unbind")
+    private Boolean allowSelfUnbind;
+
+    /** 若为已合并卡，指向被续期的主卡 rows */
+    @JsonProperty("merged_into_card_id")
+    private Long mergedIntoCardId;
 
     // Getters and Setters
     public Long getId() { return id; }
@@ -130,4 +142,13 @@ public class Card {
 
     public String getMachineCode() { return machineCode; }
     public void setMachineCode(String machineCode) { this.machineCode = machineCode; }
+
+    public Boolean getStackTimeIfSameMachine() { return stackTimeIfSameMachine; }
+    public void setStackTimeIfSameMachine(Boolean stackTimeIfSameMachine) { this.stackTimeIfSameMachine = stackTimeIfSameMachine; }
+
+    public Boolean getAllowSelfUnbind() { return allowSelfUnbind; }
+    public void setAllowSelfUnbind(Boolean allowSelfUnbind) { this.allowSelfUnbind = allowSelfUnbind; }
+
+    public Long getMergedIntoCardId() { return mergedIntoCardId; }
+    public void setMergedIntoCardId(Long mergedIntoCardId) { this.mergedIntoCardId = mergedIntoCardId; }
 }

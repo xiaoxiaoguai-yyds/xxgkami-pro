@@ -1,5 +1,6 @@
 package org.xxg.backend.backend.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.xxg.backend.backend.entity.ApiKey;
@@ -17,6 +18,7 @@ public class ApiKeyController {
 
     private final ApiKeyService apiKeyService;
     private final UserMapper userMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ApiKeyController(ApiKeyService apiKeyService, UserMapper userMapper) {
         this.apiKeyService = apiKeyService;
@@ -46,10 +48,33 @@ public class ApiKeyController {
         String name = (String) body.get("name");
         String description = (String) body.get("description");
         Integer status = body.containsKey("status") ? (Integer) body.get("status") : 1;
-        String webhookConfig = (String) body.get("webhook_config");
         Boolean enableCardEncryption = body.containsKey("enable_card_encryption") ? (Boolean) body.get("enable_card_encryption") : false;
-        
-        apiKeyService.updateApiKey(id, name, description, status, webhookConfig, enableCardEncryption);
+
+        Boolean requireMachineCode = body.containsKey("require_machine_code")
+                ? Boolean.TRUE.equals(body.get("require_machine_code")) : null;
+
+        boolean updateSpecConfig = body.containsKey("machine_spec_once_config");
+        String machineSpecOnceConfig = null;
+        if (updateSpecConfig) {
+            Object spec = body.get("machine_spec_once_config");
+            if (spec == null) {
+                machineSpecOnceConfig = null;
+            } else if (spec instanceof String) {
+                machineSpecOnceConfig = (String) spec;
+            } else {
+                try {
+                    machineSpecOnceConfig = objectMapper.writeValueAsString(spec);
+                } catch (Exception e) {
+                    machineSpecOnceConfig = spec.toString();
+                }
+            }
+        }
+
+        boolean updateWebhook = body.containsKey("webhook_config");
+        String webhookStr = updateWebhook ? (String) body.get("webhook_config") : null;
+
+        apiKeyService.updateApiKey(id, name, description, status, webhookStr, enableCardEncryption,
+                requireMachineCode, machineSpecOnceConfig, updateSpecConfig, updateWebhook);
         return ResponseEntity.ok().build();
     }
 
