@@ -134,6 +134,8 @@ fi
 
 # 向导「安装 MySQL」时写入 56 / 80；为空则仅按 MYSQL_DETECTED_VARIANT 与版本推断 SQL 脚本
 XXGKAMI_USER_SQL_SERIES=""
+# check_mysql_version 置位：MariaDB 不支持 kami.sql 中 utf8mb4_0900_ai_ci 等 MySQL 8 语法，必须用 kami_mysql56.sql
+MYSQL_SERVER_IS_MARIADB=false
 
 # ---------- 国内 / 外网判定（全局，供分步安装与 Git 仓库使用）----------
 detect_network_region() {
@@ -193,11 +195,13 @@ _xxgkami_prompt_mysql_major_for_install() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━ MySQL 主版本选择 ━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}建议选择 ${YELLOW}MySQL 8.0 ${GREEN}[1]${NC}"
     echo -e "  · 与各发行版 ${YELLOW}mysql-server ${NC}契合度高，兼容性更好。"
-    echo -e "  · 安装成功后默认导入仓库内 ${YELLOW}databaes/kami.sql ${NC}(或 database/kami.sql)。"
+    echo -e "  · 安装成功且为 Oracle MySQL 8 时导入 ${YELLOW}databaes/kami.sql ${NC}；若实际运行的是 ${YELLOW}MariaDB${NC}，脚本会自动改用 ${YELLOW}kami_mysql56.sql ${NC}(因 kami.sql 含 MySQL 8 专属排序规则)。"
     echo ""
     echo -e "${YELLOW}MySQL 5.6 / 5.x 兼容脚本 [2]${NC}"
     echo -e "  · 将导入 ${YELLOW}databaes/kami_mysql56.sql ${NC}(或 database/kami_mysql56.sql)，适合旧语法/低版本服务端。"
-    echo -e "${RED}注意：Ubuntu 22+ / EL9 等默认源通常无 Oracle MySQL 5.6；若选此项，脚本会优先尝试安装 ${YELLOW}MariaDB Server ${RED}承载数据，仍失败时请改选 [1]。${NC}"
+    echo -e "${RED}重要：此选项 ${YELLOW}不是${RED} 安装 Oracle MySQL 5.6（多数发行版源已移除）。脚本会优先安装 ${YELLOW}MariaDB Server ${RED}(如 10.5)，"
+    echo -e "  安装完成后 ${YELLOW}mysql -V ${RED}会显示较高主版本号属正常；与「导入旧版 SQL 脚本」是两件事。${NC}"
+    echo -e "${RED}若仍失败请改选 [1] 安装 mysql-server（多为 MySQL 8）。${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     read -r -p "请选择 [1]=MySQL8.0 [2]=5.x/5.6脚本 (默认 1): " _msql_pick
     case "${_msql_pick:-1}" in
@@ -212,8 +216,11 @@ _xxgkami_prompt_mysql_major_for_install() {
     esac
 }
 
-# 若为 56、或检测到 MySQL 版本在 [5.6, 8.0) 且无用户强制 80 → 选用 kami_mysql56.sql
+# MariaDB → 必选 56 脚本（kami.sql 会报 Unknown collation utf8mb4_0900_ai_ci）；Oracle MySQL：[5.6,8) 或向导 [2]
 _xxgkami_should_use_kami_mysql56_sql() {
+    if [ "${MYSQL_SERVER_IS_MARIADB:-false}" = true ]; then
+        return 0
+    fi
     if [ "${XXGKAMI_USER_SQL_SERIES:-}" = "56" ]; then
         return 0
     fi
@@ -238,12 +245,61 @@ _xxgkami_pick_kami_seed_sql_file() {
         for p in "$k56_a" "$k56_b"; do
             [ -f "$p" ] && { echo "$p"; return 0; }
         done
-        echo -e "${YELLOW}[SQL] 未找到 kami_mysql56.sql ，将回退为 kami.sql（若仍失败请检查仓库）。${NC}" >&2
+        if [ "${MYSQL_SERVER_IS_MARIADB:-false}" = true ]; then
+            echo -e "${RED}[SQL] MariaDB 需要 kami_mysql56.sql，但未在仓库中找到；回退 kami.sql 极有可能失败（如 utf8mb4_0900_ai_ci）。${NC}" >&2
+        else
+            echo -e "${YELLOW}[SQL] 未找到 kami_mysql56.sql ，将回退为 kami.sql（若仍失败请检查仓库）。${NC}" >&2
+        fi
     fi
     for p in "$k8_a" "$k8_b"; do
         [ -f "$p" ] && { echo "$p"; return 0; }
     done
     return 1
+}
+
+# 库已存在且含表：选择 merge / DROP+全量导入；不含库或无表时为 direct（直接全量导入）
+_xxgkami_prompt_existing_database_strategy() {
+    local db_user="$1" db_pass="$2" db_name="$3" k_exists="$4" tbl_cnt="$5"
+    XXGKAMI_DB_ACTION=direct
+    XXGKAMI_MYSQL_EFFECTIVE_PASS="$db_pass"
+
+    [ "${k_exists:-0}" -eq 1 ] 2>/dev/null || return 0
+    [ "${tbl_cnt:-0}" -gt 0 ] 2>/dev/null || return 0
+
+    while true; do
+        echo ""
+        echo -e "${RED}━━━━━━━━ 数据库「${db_name}」已存在且含数据表 ━━━━━━━━${NC}"
+        echo -e "  ${GREEN}[1]${NC} ${RED}删除${NC}原库「${db_name}」后按种子 SQL ${YELLOW}全新导入${NC}（不可逆，请先备份）"
+        echo -e "  ${GREEN}[2]${NC} ${YELLOW}智能更新${NC}当前库（临时库合并：补新表、mysqldump insert-ignore 补缺行）"
+        read -r -p "请选择 [1/2]: " _dbstrat
+        case "${_dbstrat:-}" in
+            1)
+                echo -e "${RED}即将永久删除数据库「${db_name}」及其中全部数据。${NC}"
+                read -r -p "二次确认：请输入大写 DELETE 后回车: " _delconf
+                if [ "$_delconf" != "DELETE" ]; then
+                    echo -e "${YELLOW}已取消删除，请重新选择处理方式。${NC}"
+                    continue
+                fi
+                local _inp=""
+                read -r -s -p "请输入 MySQL 账号「${db_user}」的登录密码以最终确认删除并重建（输入不回显）: " _inp
+                echo ""
+                if ! mysql -u"$db_user" -p"$_inp" -e "SELECT 1" >/dev/null 2>&1; then
+                    echo -e "${RED}密码错误或无法连接数据库，已返回上一级菜单。${NC}"
+                    continue
+                fi
+                XXGKAMI_MYSQL_EFFECTIVE_PASS="$_inp"
+                XXGKAMI_DB_ACTION=drop_import
+                return 0
+                ;;
+            2)
+                XXGKAMI_DB_ACTION=merge
+                return 0
+                ;;
+            *)
+                echo -e "${YELLOW}无效输入，请输入 1 或 2。${NC}"
+                ;;
+        esac
+    done
 }
 
 need_redis_install() {
@@ -787,7 +843,7 @@ install_mysql_pkg() {
         DEBIAN_FRONTEND=noninteractive apt-get update -y
         DEBIAN_FRONTEND=noninteractive apt-get install -y -f 2>/dev/null || true
         if [ "${XXGKAMI_USER_SQL_SERIES:-}" = "56" ]; then
-            echo -e "${YELLOW}[MySQL 5.x/兼容] 优先尝试安装 MariaDB Server（常见发行版源内可用）…${NC}"
+            echo -e "${YELLOW}[5.x种子/SQL] 安装 MariaDB Server（替代已难获取的 Oracle MySQL 5.6；服务端版本号将是 10.x 等，属正常）…${NC}"
             DEBIAN_FRONTEND=noninteractive apt-get install -y \
                 mariadb-server mariadb-client 2>/dev/null \
                 || DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server 2>/dev/null \
@@ -833,7 +889,7 @@ install_mysql_pkg() {
             echo -e "${YELLOW}国内环境：若下载慢请在 yum/dnf 中配置阿里云 Vault / Base 镜像后重试${NC}"
         fi
         if [ "${XXGKAMI_USER_SQL_SERIES:-}" = "56" ]; then
-            echo -e "${YELLOW}[MySQL 5.x/兼容] 优先尝试安装 MariaDB Server…${NC}"
+            echo -e "${YELLOW}[5.x种子/SQL] 安装 MariaDB Server（非 Oracle MySQL 5.6；mysql -V 可能显示 10.x）…${NC}"
             if command -v dnf >/dev/null 2>&1; then
                 dnf install -y mariadb-server mariadb 2>/dev/null || dnf install -y mariadb-server 2>/dev/null || true
             else
@@ -1594,19 +1650,37 @@ _xxgkami_embed_resolve_db_credentials_for_update() {
     DB_PWD="\$(echo "\$_in_p" | sed 's/^[[:space:]]*//;s/[[:space:]]*\$//')"
 }
 
-# 根据安装备忘 XXGKAMI_SQL_SERIES（56= kami_mysql56.sql，其它= kami.sql）选取增量合并脚本路径
+# 「更新」：VERSION() 中含 MariaDB → kami_mysql56（kami.sql 的 utf8mb4_0900_ai_ci 等不在 MariaDB）；否则 Oracle MySQL：≥8→kami.sql，[5.6,8)→kami_mysql56.sql
 _xxgkami_embed_pick_seed_sql_path_for_update() {
-    local base="\${INSTALL_DIR%/}" rf="\${DEPLOY_ROOT%/}/.xxgkami-install-record" ser="" line="" p=""
-    if [ -f "\$rf" ]; then
-        while IFS= read -r line || [ -n "\$line" ]; do
-            case "\$line" in
-                ''|'#'*) continue ;;
-                XXGKAMI_SQL_SERIES=*) ser="\${line#XXGKAMI_SQL_SERIES=}" ;;
-            esac
-        done < "\$rf"
+    local base="\${INSTALL_DIR%/}" p="" _ver_line="" _ver_num=""
+    _ver_line=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -s -e "SELECT VERSION();" 2>/dev/null | head -n1 | tr -d '\r')
+
+    case "\$_ver_line" in *MariaDB*|*mariadb*)
+        echo -e "\${GREEN}[更新][SQL] VERSION()=\${_ver_line} → MariaDB：databaes/kami_mysql56.sql（避免 kami.sql 中 MySQL 8 专属排序规则报错）\${NC}" >&2
+        for p in "\$base/databaes/kami_mysql56.sql" "\$base/database/kami_mysql56.sql"; do
+            [ -f "\$p" ] && { echo "\$p"; return 0; }
+        done
+        for p in "\$base/databaes/kami.sql" "\$base/database/kami.sql"; do
+            [ -f "\$p" ] && { echo "\$p"; return 0; }
+        done
+        echo "\$base/databaes/kami_mysql56.sql"
+        return 0
+        ;;
+    esac
+
+    _ver_num=\$(echo "\$_ver_line" | grep -oE '[0-9]+\.[0-9]+' | head -n1)
+
+    if [ -n "\$_ver_num" ] && awk -v v="\$_ver_num" 'BEGIN {exit !(v >= 8.0)}'; then
+        echo -e "\${GREEN}[更新][SQL] VERSION()=\${_ver_line}（\${_ver_num}）→ Oracle MySQL 8+：databaes/kami.sql\${NC}" >&2
+        for p in "\$base/databaes/kami.sql" "\$base/database/kami.sql"; do
+            [ -f "\$p" ] && { echo "\$p"; return 0; }
+        done
+        echo "\$base/databaes/kami.sql"
+        return 0
     fi
-    ser=\$(echo "\$ser" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*\$//')
-    if [ "\$ser" = "56" ]; then
+
+    if [ -n "\$_ver_num" ] && awk -v v="\$_ver_num" 'BEGIN {exit !(v >= 5.6 && v < 8.0)}'; then
+        echo -e "\${GREEN}[更新][SQL] VERSION()=\${_ver_line}（\${_ver_num}）→ 5.6～8 以下 Oracle MySQL：databaes/kami_mysql56.sql\${NC}" >&2
         for p in "\$base/databaes/kami_mysql56.sql" "\$base/database/kami_mysql56.sql"; do
             [ -f "\$p" ] && { echo "\$p"; return 0; }
         done
@@ -1616,11 +1690,64 @@ _xxgkami_embed_pick_seed_sql_path_for_update() {
         echo "\$base/databaes/kami_mysql56.sql"
         return 0
     fi
+
+    if [ -n "\$_ver_num" ]; then
+        echo -e "\${YELLOW}[更新][SQL] VERSION()=\${_ver_line}（\${_ver_num}）；低于 5.6，优先 kami_mysql56.sql\${NC}" >&2
+    else
+        echo -e "\${YELLOW}[更新][SQL] 无法读取 VERSION()，默认优先 kami_mysql56.sql\${NC}" >&2
+    fi
+    for p in "\$base/databaes/kami_mysql56.sql" "\$base/database/kami_mysql56.sql"; do
+        [ -f "\$p" ] && { echo "\$p"; return 0; }
+    done
     for p in "\$base/databaes/kami.sql" "\$base/database/kami.sql"; do
         [ -f "\$p" ] && { echo "\$p"; return 0; }
     done
-    echo "\$base/databaes/kami.sql"
+    echo "\$base/databaes/kami_mysql56.sql"
     return 0
+}
+
+_xxgkami_embed_prompt_existing_database_strategy() {
+    local db_u="\$1" db_pw="\$2" db_nm="\$3" k_ex="\$4" t_cn="\$5"
+    XXGKAMI_DB_ACTION=direct
+    XXGKAMI_MYSQL_EFFECTIVE_PASS="\$db_pw"
+
+    [ "\${k_ex:-0}" -eq 1 ] 2>/dev/null || return 0
+    [ "\${t_cn:-0}" -gt 0 ] 2>/dev/null || return 0
+
+    while true; do
+        echo ""
+        echo -e "\${RED}━━━━━━━━ 数据库「\${db_nm}」已存在且含数据表 ━━━━━━━━\${NC}"
+        echo -e "  \${GREEN}[1]\${NC} \${RED}删除\${NC}原库「\${db_nm}」后按种子 SQL \${YELLOW}全新导入\${NC}（不可逆，请先备份）"
+        echo -e "  \${GREEN}[2]\${NC} \${YELLOW}智能更新\${NC}当前库（临时库合并：补新表、insert-ignore 补缺行）"
+        read -r -p "请选择 [1/2]: " _dbstrat
+        case "\${_dbstrat:-}" in
+            1)
+                echo -e "\${RED}即将永久删除数据库「\${db_nm}」及其中全部数据。\${NC}"
+                read -r -p "二次确认：请输入大写 DELETE 后回车: " _delconf
+                if [ "\$_delconf" != "DELETE" ]; then
+                    echo -e "\${YELLOW}已取消删除，请重新选择处理方式。\${NC}"
+                    continue
+                fi
+                local _inp=""
+                read -r -s -p "请输入 MySQL 账号「\${db_u}」的登录密码以最终确认删除并重建（不回显）: " _inp
+                echo ""
+                if ! mysql -u"\$db_u" -p"\$_inp" -e "SELECT 1" >/dev/null 2>&1; then
+                    echo -e "\${RED}密码错误或无法连接数据库，已返回上一级菜单。\${NC}"
+                    continue
+                fi
+                XXGKAMI_MYSQL_EFFECTIVE_PASS="\$_inp"
+                XXGKAMI_DB_ACTION=drop_import
+                return 0
+                ;;
+            2)
+                XXGKAMI_DB_ACTION=merge
+                return 0
+                ;;
+            *)
+                echo -e "\${YELLOW}无效输入，请输入 1 或 2。\${NC}"
+                ;;
+        esac
+    done
 }
 
 while true; do
@@ -1703,8 +1830,6 @@ while true; do
             
             DB_NAME="kami"
 
-            echo -e "\${BLUE}[数据库] 增量合并说明：将把仓库自带全量脚本导入【临时数据库】，再向您已有「\$DB_NAME」库补建新表、mysqldump --insert-ignore 补缺失数据行；不会在「\$DB_NAME」上 DROP/整库替换。\${NC}"
-
             _xxgkami_embed_resolve_db_credentials_for_update
 
             if [ -z "\$DB_USER" ] || [ -z "\$DB_PWD" ]; then
@@ -1712,48 +1837,84 @@ while true; do
                 continue
             fi
 
-            SQL_FILE="\$(_xxgkami_embed_pick_seed_sql_path_for_update)"
-            
-            echo -e "\${YELLOW}[数据库] 确保业务库 \$DB_NAME 存在...\${NC}"
+            echo -e "\${YELLOW}[数据库] 确保业务库 \$DB_NAME 可访问...\${NC}"
             mysql -u"\$DB_USER" -p"\$DB_PWD" -e "CREATE DATABASE IF NOT EXISTS \$DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" || {
                 echo -e "\${RED}[数据库] 无法连接或权限不足（CREATE DATABASE）；请检查账号密码。\${NC}"
                 continue
             }
-            
-            if [ -f "\$SQL_FILE" ]; then
-                echo -e "\${YELLOW}[数据库] 正在执行增量合并...\${NC}"
+
+            SQL_FILE="\$(_xxgkami_embed_pick_seed_sql_path_for_update)"
+
+            _KAMI_EX=0
+            _TBL_CT=0
+            _sch=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -s -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='\$DB_NAME'" 2>/dev/null | tr -dc '0-9')
+            _sch=\${_sch:-0}
+            [ "\${_sch:-0}" -ge 1 ] && _KAMI_EX=1
+            if [ "\$_KAMI_EX" -eq 1 ]; then
+                _TBL_CT=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -s -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='\$DB_NAME' AND TABLE_TYPE='BASE TABLE'" 2>/dev/null | tr -dc '0-9')
+                _TBL_CT=\${_TBL_CT:-0}
+            fi
+
+            if [ "\$_KAMI_EX" -eq 0 ]; then
+                echo -e "\${GREEN}[数据库] 未发现业务库 \$DB_NAME ，将新建并全量导入。\${NC}"
+            elif [ "\${_TBL_CT:-0}" -eq 0 ]; then
+                echo -e "\${YELLOW}[数据库] 库 \$DB_NAME 已存在但无业务表，将在该库内全量导入。\${NC}"
+            else
+                echo -e "\${YELLOW}[数据库] 库 \$DB_NAME 已存在且有 \${_TBL_CT} 张业务表。\${NC}"
+            fi
+
+            _xxgkami_embed_prompt_existing_database_strategy "\$DB_USER" "\$DB_PWD" "\$DB_NAME" "\$_KAMI_EX" "\$_TBL_CT"
+
+            _EPW="\${XXGKAMI_MYSQL_EFFECTIVE_PASS:-\$DB_PWD}"
+            _ACT="\${XXGKAMI_DB_ACTION:-direct}"
+            if [ "\$_ACT" = "drop_import" ] && [ -n "\$_EPW" ]; then
+                DB_PWD="\$_EPW"
+            fi
+
+            if [ ! -f "\$SQL_FILE" ]; then
+                echo -e "\${YELLOW}[数据库] 未找到 \$SQL_FILE ，跳过库操作（后端仍将按 JDBC 编译）。\${NC}"
+            elif [ "\$_ACT" = "merge" ]; then
+                echo -e "\${YELLOW}[数据库] 智能更新：临时库合并 → \$DB_NAME …\${NC}"
                 TEMP_DB="kami_update_temp_\$(date +%s)"
-                echo -e "\${BLUE}[数据库] 创建临时库 \$TEMP_DB...\${NC}"
-                mysql -u"\$DB_USER" -p"\$DB_PWD" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" || {
-                    echo -e "\${RED}[数据库] 创建临时库失败，跳过库合并。\${NC}"
+                mysql -u"\$DB_USER" -p"\$_EPW" -e "CREATE DATABASE IF NOT EXISTS \$DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null || true
+                echo -e "\${BLUE}[数据库] 创建临时库 \$TEMP_DB …\${NC}"
+                mysql -u"\$DB_USER" -p"\$_EPW" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" || {
+                    echo -e "\${RED}[数据库] 创建临时库失败。\${NC}"
                     TEMP_DB=""
                 }
                 if [ -n "\$TEMP_DB" ]; then
-                    echo -e "\${BLUE}[数据库] 向临时库导入仓库脚本...\${NC}"
-                    if mysql -u"\$DB_USER" -p"\$DB_PWD" "\$TEMP_DB" < "\$SQL_FILE"; then
-                        echo -e "\${BLUE}[数据库] 对比表并按需补齐...\${NC}"
-                        TEMP_TABLES=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
+                    echo -e "\${BLUE}[数据库] 向临时库导入 \$SQL_FILE …\${NC}"
+                    if mysql -u"\$DB_USER" -p"\$_EPW" "\$TEMP_DB" < "\$SQL_FILE"; then
+                        echo -e "\${BLUE}[数据库] 对比表并按需合并…\${NC}"
+                        TEMP_TABLES=\$(mysql -u"\$DB_USER" -p"\$_EPW" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
                         for TABLE in \$TEMP_TABLES; do
-                            TABLE_EXISTS=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
+                            TABLE_EXISTS=\$(mysql -u"\$DB_USER" -p"\$_EPW" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
                             if [ "\$TABLE_EXISTS" -eq 0 ]; then
-                                echo -e "\${GREEN}[数据库] 新增表 \$TABLE ，正在写入...\${NC}"
-                                mysqldump -u"\$DB_USER" -p"\$DB_PWD" "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$DB_PWD" "\$DB_NAME"
+                                echo -e "\${GREEN}[数据库] 新增表 \$TABLE ，正在写入…\${NC}"
+                                mysqldump -u"\$DB_USER" -p"\$_EPW" "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$_EPW" "\$DB_NAME"
                             else
-                                mysqldump -u"\$DB_USER" -p"\$DB_PWD" --no-create-info --insert-ignore --complete-insert "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$DB_PWD" "\$DB_NAME"
+                                mysqldump -u"\$DB_USER" -p"\$_EPW" --no-create-info --insert-ignore --complete-insert "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$_EPW" "\$DB_NAME"
                             fi
                         done
-                        echo -e "\${GREEN}[数据库] 增量合并完成。\${NC}"
+                        echo -e "\${GREEN}[数据库] 智能更新完成。\${NC}"
                     else
-                        echo -e "\${RED}[数据库] 脚本导入临时库失败，已跳过合并（\$SQL_FILE）。\${NC}"
+                        echo -e "\${RED}[数据库] 脚本导入临时库失败（\$SQL_FILE）。\${NC}"
                     fi
-                    echo -e "\${BLUE}[数据库] 删除临时库 \$TEMP_DB...\${NC}"
-                    mysql -u"\$DB_USER" -p"\$DB_PWD" -e "DROP DATABASE \$TEMP_DB;" 2>/dev/null || true
+                    echo -e "\${BLUE}[数据库] 删除临时库 \$TEMP_DB …\${NC}"
+                    mysql -u"\$DB_USER" -p"\$_EPW" -e "DROP DATABASE \$TEMP_DB;" 2>/dev/null || true
                 fi
-            else
-                echo -e "\${YELLOW}[数据库] 未找到 \$SQL_FILE ，跳过合并（后端仍将按 JDBC 编译）。\${NC}"
+            elif [ "\$_ACT" = "drop_import" ] || [ "\$_ACT" = "direct" ]; then
+                if [ "\$_ACT" = "drop_import" ]; then
+                    echo -e "\${YELLOW}[数据库] 删除原库并重建 \$DB_NAME …\${NC}"
+                    mysql -u"\$DB_USER" -p"\$_EPW" -e "DROP DATABASE IF EXISTS \$DB_NAME; CREATE DATABASE \$DB_NAME DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" || echo -e "\${RED}[数据库] DROP/CREATE 失败。\${NC}"
+                else
+                    mysql -u"\$DB_USER" -p"\$_EPW" -e "CREATE DATABASE IF NOT EXISTS \$DB_NAME DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null || true
+                fi
+                echo -e "\${GREEN}[数据库] 全量导入 \$SQL_FILE → \$DB_NAME …\${NC}"
+                mysql -u"\$DB_USER" -p"\$_EPW" "\$DB_NAME" < "\$SQL_FILE" || echo -e "\${RED}[数据库] 全量导入失败。\${NC}"
             fi
             
-            _xxgkami_embed_refresh_backend_datasource_env "\$DB_USER" "\$DB_PWD"
+            _xxgkami_embed_refresh_backend_datasource_env "\$DB_USER" "\$_EPW"
             echo -e "\${GREEN}已刷新 /etc/xxgkami/backend-datasource.env\${NC}"
             
             echo -e "\${YELLOW}[后端] 与安装对齐：Maven 阿里云镜像、bake JDBC、mvn package、fat JAR 复制到 \$DEPLOY_ROOT...\${NC}"
@@ -2006,6 +2167,8 @@ echo -e "${YELLOW}[2/8] 安装构建工具 (git, maven, curl…)…${NC}"
 check_mysql_version() {
     echo -e "${YELLOW}[前置检查] 验证 MySQL 版本兼容性...${NC}"
     MYSQL_DETECTED_VARIANT=""
+    MYSQL_SERVER_IS_MARIADB=false
+    export MYSQL_SERVER_IS_MARIADB
     if ! command -v mysql >/dev/null 2>&1; then
         echo -e "${RED}未检测到 MySQL 客户端，请先安装 MySQL（版本需严格大于 5.0）。${NC}"
         exit 1
@@ -2031,15 +2194,29 @@ check_mysql_version() {
         return 0
     fi
 
-    echo -e "当前 MySQL 版本: ${mysql_ver}"
+    local _is_maria=false
+    case "$mysql_ver_str" in
+        *MariaDB*|*mariadb*) _is_maria=true ;;
+    esac
+    echo -e "当前客户端报告版本号: ${mysql_ver}$([ "$_is_maria" = true ] && echo "（MariaDB，非 Oracle MySQL 的同号版本）" || true)"
 
     if ! awk "BEGIN {exit !($mysql_ver > 5.0)}"; then
         echo -e "${RED}当前 MySQL 版本为 ${mysql_ver}，需要严格大于 5.0 方可继续。${NC}"
         exit 1
     fi
 
+    # MariaDB：即使主版本号为 10.x，也不能使用 kami.sql（含 utf8mb4_0900_ai_ci 等 Oracle MySQL 8 专属特性）
+    if [ "$_is_maria" = true ]; then
+        echo -e "${GREEN}检测到 MariaDB（报告版本 ${mysql_ver}）。${NC}"
+        export MYSQL_SERVER_IS_MARIADB=true
+        echo -e "${YELLOW}说明：MariaDB 与 Oracle MySQL 8 的 DDL/SQL 并不完全等价；仓库中 ${YELLOW}kami.sql${NC} 面向 MySQL 8，在 MariaDB 上常见报错 ${RED}Unknown collation: utf8mb4_0900_ai_ci${NC}。"
+        echo -e "${GREEN}已自动选用 ${YELLOW}databaes/kami_mysql56.sql${GREEN}（及同系列兼容脚本）作为种子。若需 kami.sql 特性请改用 Oracle MySQL 8 Server。${NC}"
+        export MYSQL_DETECTED_VARIANT="8"
+        return 0
+    fi
+
     if awk "BEGIN {exit !($mysql_ver >= 8.0)}"; then
-        echo -e "${GREEN}检测到 MySQL 8.0+，可使用「MySQL 8.0」配套流程与默认 SQL（如 databaes/kami.sql）。${NC}"
+        echo -e "${GREEN}检测到 Oracle MySQL 8.0+，可使用「MySQL 8.0」配套流程与默认 SQL（如 databaes/kami.sql）。${NC}"
         export MYSQL_DETECTED_VARIANT="8"
         return 0
     fi
@@ -2279,14 +2456,13 @@ else
     echo -e "${YELLOW}[SQL] 未在仓库中找到预期种子脚本，将尝试：${SQL_FILE}${NC}"
 fi
 
-SKIP_SQL_IMPORT=false
 
 if [ -f "$SQL_FILE" ]; then
     echo ""
     echo -e "${BLUE}━━━━━━━━ 数据库「${DB_NAME}」写入提示 ━━━━━━━━${NC}"
-    echo -e "  · 即将执行的 SQL 将直接作用于 ${RED}${DB_NAME}${NC}（建库、建表并写入初始化/迁移数据）。"
-    echo -e "  · 若当前系统中 ${GREEN}没有${NC}名为「${DB_NAME}」的数据库（或为空库），一般会直接导入，无需额外备份。"
-    echo -e "  · 若「${DB_NAME}」${YELLOW}已存在${NC}且${RED}含业务数据表${NC}，请先 ${YELLOW}mysqldump / 宝塔备份${NC} 后再确认；贸然导入可能导致 ${RED}数据丢失或与现有结构冲突${NC}。"
+    echo -e "  · 种子脚本：${YELLOW}${SQL_FILE}${NC}"
+    echo -e "  · 若数据库 ${GREEN}不存在${NC} 或 ${GREEN}无业务表${NC}，将直接全量导入。"
+    echo -e "  · 若已存在且有表，可选择「删除重建」或「智能合并更新」；删除需二次确认并校验 MySQL 登录密码。"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     KAMI_EXISTS=0
@@ -2303,83 +2479,71 @@ if [ -f "$SQL_FILE" ]; then
     fi
 
     if [ "$KAMI_EXISTS" -eq 0 ]; then
-        echo -e "${GREEN}检测结果：未发现「${DB_NAME}」数据库，将新建该库后继续导入初始化数据。${NC}"
+        echo -e "${GREEN}检测结果：未发现「${DB_NAME}」库，将新建并全量导入。${NC}"
     elif [ "${TABLE_COUNT:-0}" -eq 0 ]; then
-        echo -e "${YELLOW}检测结果：数据库「${DB_NAME}」已存在，但未检测到业务表；将在该库内执行导入（通常为初始化表结构）。${NC}"
+        echo -e "${YELLOW}检测结果：库「${DB_NAME}」已存在但无业务表，将在该库内全量导入。${NC}"
     else
-        echo -e "${YELLOW}检测结果：数据库「${DB_NAME}」已存在，且检测到 ${TABLE_COUNT} 张数据表（可能已有业务数据）。${NC}"
+        echo -e "${YELLOW}检测结果：库「${DB_NAME}」已有 ${TABLE_COUNT} 张业务表。${NC}"
     fi
 
-    if [ "$IS_UPDATE_MODE" == "true" ]; then
-        if [ "$KAMI_EXISTS" -eq 1 ] && [ "${TABLE_COUNT:-0}" -gt 0 ]; then
-            echo -e "${RED}当前将进行「数据库智能更新」（合并临时库到 ${DB_NAME}），可能影响现有表与数据。${NC}"
-            read -r -p "请先完成备份后再选择。确认继续？[y/N]: " CONFIRM_DB_UPDATE
-            if [[ ! "$CONFIRM_DB_UPDATE" =~ ^[Yy]$ ]]; then
-                SKIP_SQL_IMPORT=true
-                echo -e "${YELLOW}已跳过数据库智能更新步骤。${NC}"
-            fi
-        elif [ "$KAMI_EXISTS" -eq 0 ]; then
-            echo -e "${GREEN}未发现「${DB_NAME}」，将先创建数据库再执行初始化/更新流程。${NC}"
-        fi
-        if [ "$SKIP_SQL_IMPORT" = false ]; then
-        echo -e "${YELLOW}正在执行数据库智能更新...${NC}"
+    _xxgkami_prompt_existing_database_strategy "$DB_USER" "$DB_PASSWORD" "$DB_NAME" "$KAMI_EXISTS" "$TABLE_COUNT"
+
+    _EFFPW="${XXGKAMI_MYSQL_EFFECTIVE_PASS:-$DB_PASSWORD}"
+    _DBACT="${XXGKAMI_DB_ACTION:-direct}"
+    if [ "$_DBACT" = "drop_import" ]; then
+        DB_PASSWORD="$_EFFPW"
+    fi
+
+    run_merge_db() {
+        echo -e "${YELLOW}正在执行数据库智能更新（临时库合并）…${NC}"
         TEMP_DB="kami_update_temp_$(date +%s)"
-        
-        mysql -u$DB_USER -p"$DB_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null
-        
-        # 1. 创建临时数据库
-        echo -e "${BLUE}创建临时数据库 $TEMP_DB...${NC}"
-        mysql -u$DB_USER -p"$DB_PASSWORD" -e "CREATE DATABASE $TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;"
-        
-        # 2. 导入新版 SQL 到临时数据库
-        echo -e "${BLUE}导入新版数据到临时库...${NC}"
-        mysql -u$DB_USER -p"$DB_PASSWORD" $TEMP_DB < "$SQL_FILE"
-        
-        # 3. 同步表结构 (新增表)
-        echo -e "${BLUE}检查新增表...${NC}"
-        # 获取临时库的所有表名
-        TEMP_TABLES=$(mysql -u$DB_USER -p"$DB_PASSWORD" -N -B -e "SHOW TABLES FROM $TEMP_DB")
-        
-        for TABLE in $TEMP_TABLES; do
-            # 检查目标库是否存在该表
-            TABLE_EXISTS=$(mysql -u$DB_USER -p"$DB_PASSWORD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME' AND table_name = '$TABLE';")
-            
-            if [ "$TABLE_EXISTS" -eq 0 ]; then
-                echo -e "${GREEN}检测到新增表: $TABLE，正在创建...${NC}"
-                # 从临时库导出该表结构和数据，导入到目标库
-                mysqldump -u$DB_USER -p"$DB_PASSWORD" $TEMP_DB $TABLE | mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME
-            else
-                # 4. 同步数据 (新增行) - 仅对存在的表执行插入
-                # 使用 INSERT IGNORE 避免主键冲突，保留现有数据
-                # echo -e "${BLUE}检查表 $TABLE 数据更新...${NC}"
-                mysqldump -u$DB_USER -p"$DB_PASSWORD" --no-create-info --insert-ignore --complete-insert $TEMP_DB $TABLE | mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME
-            fi
-        done
-        
-        echo -e "${GREEN}数据库增量更新完成!${NC}"
-        
-        # 5. 清理临时数据库
-        echo -e "${BLUE}清理临时数据库...${NC}"
-        mysql -u$DB_USER -p"$DB_PASSWORD" -e "DROP DATABASE $TEMP_DB;"
+        mysql -u"$DB_USER" -p"$_EFFPW" -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null
+        echo -e "${BLUE}创建临时数据库 $TEMP_DB…${NC}"
+        mysql -u"$DB_USER" -p"$_EFFPW" -e "CREATE DATABASE $TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" || {
+            echo -e "${RED}创建临时库失败。${NC}"
+            return 1
+        }
+        echo -e "${BLUE}向临时库导入种子脚本…${NC}"
+        if mysql -u"$DB_USER" -p"$_EFFPW" "$TEMP_DB" < "$SQL_FILE"; then
+            echo -e "${BLUE}对比表并按需合并…${NC}"
+            TEMP_TABLES=$(mysql -u"$DB_USER" -p"$_EFFPW" -N -B -e "SHOW TABLES FROM $TEMP_DB")
+            for TABLE in $TEMP_TABLES; do
+                TABLE_EXISTS=$(mysql -u"$DB_USER" -p"$_EFFPW" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME' AND table_name = '$TABLE';")
+                if [ "$TABLE_EXISTS" -eq 0 ]; then
+                    echo -e "${GREEN}新增表 $TABLE ，正在写入…${NC}"
+                    mysqldump -u"$DB_USER" -p"$_EFFPW" "$TEMP_DB" "$TABLE" | mysql -u"$DB_USER" -p"$_EFFPW" "$DB_NAME"
+                else
+                    mysqldump -u"$DB_USER" -p"$_EFFPW" --no-create-info --insert-ignore --complete-insert "$TEMP_DB" "$TABLE" | mysql -u"$DB_USER" -p"$_EFFPW" "$DB_NAME"
+                fi
+            done
+            echo -e "${GREEN}数据库智能更新完成。${NC}"
+        else
+            echo -e "${RED}脚本导入临时库失败（${SQL_FILE}）。${NC}"
         fi
-        
-    else
-        if [ "$KAMI_EXISTS" -eq 1 ] && [ "${TABLE_COUNT:-0}" -gt 0 ]; then
-            echo ""
-            echo -e "${RED}警告：数据库「${DB_NAME}」中已存在数据表，再继续将执行 SQL 脚本导入（可能覆盖或破坏现有业务数据）。${NC}"
-            read -r -p "请先备份数据库。是否确认覆盖式导入？[y/N]: " CONFIRM_SQL_OVERWRITE
-            if [[ ! "$CONFIRM_SQL_OVERWRITE" =~ ^[Yy]$ ]]; then
-                SKIP_SQL_IMPORT=true
-                echo -e "${YELLOW}已跳过导入。请备份后按需手动导入，或使用「更新」模式再做合并。应用需连接已有「${DB_NAME}」时请确保数据完整。${NC}"
-            fi
-        fi
+        echo -e "${BLUE}清理临时库 $TEMP_DB…${NC}"
+        mysql -u"$DB_USER" -p"$_EFFPW" -e "DROP DATABASE $TEMP_DB;" 2>/dev/null || true
+    }
 
-        if [ "$SKIP_SQL_IMPORT" = false ]; then
-            echo -e "${GREEN}正在导入数据库（${SQL_FILE}）→ ${DB_NAME} …${NC}"
-            mysql -u$DB_USER -p"$DB_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS $DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;"
-            mysql -u$DB_USER -p"$DB_PASSWORD" $DB_NAME < "$SQL_FILE"
+    if [ "$_DBACT" = "merge" ]; then
+        run_merge_db
+    elif [ "$_DBACT" = "drop_import" ] || [ "$_DBACT" = "direct" ]; then
+        if [ "$_DBACT" = "drop_import" ]; then
+            echo -e "${YELLOW}删除原库并重建「${DB_NAME}」…${NC}"
+            mysql -u"$DB_USER" -p"$_EFFPW" -e "DROP DATABASE IF EXISTS ${DB_NAME}; CREATE DATABASE ${DB_NAME} DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" || {
+                echo -e "${RED}DROP/CREATE DATABASE 失败。${NC}"
+            }
+        else
+            mysql -u"$DB_USER" -p"$_EFFPW" -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null || true
+        fi
+        echo -e "${GREEN}正在全量导入数据库（${SQL_FILE}）→ ${DB_NAME} …${NC}"
+        if mysql -u"$DB_USER" -p"$_EFFPW" "$DB_NAME" < "$SQL_FILE"; then
+            echo -e "${GREEN}全量导入完成。${NC}"
+        else
+            echo -e "${RED}全量导入失败，请检查 SQL 与服务端兼容性。${NC}"
         fi
     fi
+
+    unset -f run_merge_db 2>/dev/null || true
 else
     echo -e "${RED}错误：找不到数据库文件 $SQL_FILE${NC}"
 fi
@@ -3095,19 +3259,37 @@ _xxgkami_embed_resolve_db_credentials_for_update() {
     DB_PWD="\$(echo "\$_in_p" | sed 's/^[[:space:]]*//;s/[[:space:]]*\$//')"
 }
 
-# 根据安装备忘 XXGKAMI_SQL_SERIES（56= kami_mysql56.sql，其它= kami.sql）选取增量合并脚本路径
+# 「更新」：VERSION() 中含 MariaDB → kami_mysql56（kami.sql 的 utf8mb4_0900_ai_ci 等不在 MariaDB）；否则 Oracle MySQL：≥8→kami.sql，[5.6,8)→kami_mysql56.sql
 _xxgkami_embed_pick_seed_sql_path_for_update() {
-    local base="\${INSTALL_DIR%/}" rf="\${DEPLOY_ROOT%/}/.xxgkami-install-record" ser="" line="" p=""
-    if [ -f "\$rf" ]; then
-        while IFS= read -r line || [ -n "\$line" ]; do
-            case "\$line" in
-                ''|'#'*) continue ;;
-                XXGKAMI_SQL_SERIES=*) ser="\${line#XXGKAMI_SQL_SERIES=}" ;;
-            esac
-        done < "\$rf"
+    local base="\${INSTALL_DIR%/}" p="" _ver_line="" _ver_num=""
+    _ver_line=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -s -e "SELECT VERSION();" 2>/dev/null | head -n1 | tr -d '\r')
+
+    case "\$_ver_line" in *MariaDB*|*mariadb*)
+        echo -e "\${GREEN}[更新][SQL] VERSION()=\${_ver_line} → MariaDB：databaes/kami_mysql56.sql（避免 kami.sql 中 MySQL 8 专属排序规则报错）\${NC}" >&2
+        for p in "\$base/databaes/kami_mysql56.sql" "\$base/database/kami_mysql56.sql"; do
+            [ -f "\$p" ] && { echo "\$p"; return 0; }
+        done
+        for p in "\$base/databaes/kami.sql" "\$base/database/kami.sql"; do
+            [ -f "\$p" ] && { echo "\$p"; return 0; }
+        done
+        echo "\$base/databaes/kami_mysql56.sql"
+        return 0
+        ;;
+    esac
+
+    _ver_num=\$(echo "\$_ver_line" | grep -oE '[0-9]+\.[0-9]+' | head -n1)
+
+    if [ -n "\$_ver_num" ] && awk -v v="\$_ver_num" 'BEGIN {exit !(v >= 8.0)}'; then
+        echo -e "\${GREEN}[更新][SQL] VERSION()=\${_ver_line}（\${_ver_num}）→ Oracle MySQL 8+：databaes/kami.sql\${NC}" >&2
+        for p in "\$base/databaes/kami.sql" "\$base/database/kami.sql"; do
+            [ -f "\$p" ] && { echo "\$p"; return 0; }
+        done
+        echo "\$base/databaes/kami.sql"
+        return 0
     fi
-    ser=\$(echo "\$ser" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*\$//')
-    if [ "\$ser" = "56" ]; then
+
+    if [ -n "\$_ver_num" ] && awk -v v="\$_ver_num" 'BEGIN {exit !(v >= 5.6 && v < 8.0)}'; then
+        echo -e "\${GREEN}[更新][SQL] VERSION()=\${_ver_line}（\${_ver_num}）→ 5.6～8 以下 Oracle MySQL：databaes/kami_mysql56.sql\${NC}" >&2
         for p in "\$base/databaes/kami_mysql56.sql" "\$base/database/kami_mysql56.sql"; do
             [ -f "\$p" ] && { echo "\$p"; return 0; }
         done
@@ -3117,11 +3299,64 @@ _xxgkami_embed_pick_seed_sql_path_for_update() {
         echo "\$base/databaes/kami_mysql56.sql"
         return 0
     fi
+
+    if [ -n "\$_ver_num" ]; then
+        echo -e "\${YELLOW}[更新][SQL] VERSION()=\${_ver_line}（\${_ver_num}）；低于 5.6，优先 kami_mysql56.sql\${NC}" >&2
+    else
+        echo -e "\${YELLOW}[更新][SQL] 无法读取 VERSION()，默认优先 kami_mysql56.sql\${NC}" >&2
+    fi
+    for p in "\$base/databaes/kami_mysql56.sql" "\$base/database/kami_mysql56.sql"; do
+        [ -f "\$p" ] && { echo "\$p"; return 0; }
+    done
     for p in "\$base/databaes/kami.sql" "\$base/database/kami.sql"; do
         [ -f "\$p" ] && { echo "\$p"; return 0; }
     done
-    echo "\$base/databaes/kami.sql"
+    echo "\$base/databaes/kami_mysql56.sql"
     return 0
+}
+
+_xxgkami_embed_prompt_existing_database_strategy() {
+    local db_u="\$1" db_pw="\$2" db_nm="\$3" k_ex="\$4" t_cn="\$5"
+    XXGKAMI_DB_ACTION=direct
+    XXGKAMI_MYSQL_EFFECTIVE_PASS="\$db_pw"
+
+    [ "\${k_ex:-0}" -eq 1 ] 2>/dev/null || return 0
+    [ "\${t_cn:-0}" -gt 0 ] 2>/dev/null || return 0
+
+    while true; do
+        echo ""
+        echo -e "\${RED}━━━━━━━━ 数据库「\${db_nm}」已存在且含数据表 ━━━━━━━━\${NC}"
+        echo -e "  \${GREEN}[1]\${NC} \${RED}删除\${NC}原库「\${db_nm}」后按种子 SQL \${YELLOW}全新导入\${NC}（不可逆，请先备份）"
+        echo -e "  \${GREEN}[2]\${NC} \${YELLOW}智能更新\${NC}当前库（临时库合并：补新表、insert-ignore 补缺行）"
+        read -r -p "请选择 [1/2]: " _dbstrat
+        case "\${_dbstrat:-}" in
+            1)
+                echo -e "\${RED}即将永久删除数据库「\${db_nm}」及其中全部数据。\${NC}"
+                read -r -p "二次确认：请输入大写 DELETE 后回车: " _delconf
+                if [ "\$_delconf" != "DELETE" ]; then
+                    echo -e "\${YELLOW}已取消删除，请重新选择处理方式。\${NC}"
+                    continue
+                fi
+                local _inp=""
+                read -r -s -p "请输入 MySQL 账号「\${db_u}」的登录密码以最终确认删除并重建（不回显）: " _inp
+                echo ""
+                if ! mysql -u"\$db_u" -p"\$_inp" -e "SELECT 1" >/dev/null 2>&1; then
+                    echo -e "\${RED}密码错误或无法连接数据库，已返回上一级菜单。\${NC}"
+                    continue
+                fi
+                XXGKAMI_MYSQL_EFFECTIVE_PASS="\$_inp"
+                XXGKAMI_DB_ACTION=drop_import
+                return 0
+                ;;
+            2)
+                XXGKAMI_DB_ACTION=merge
+                return 0
+                ;;
+            *)
+                echo -e "\${YELLOW}无效输入，请输入 1 或 2。\${NC}"
+                ;;
+        esac
+    done
 }
 
 while true; do
@@ -3204,8 +3439,6 @@ while true; do
             
             DB_NAME="kami"
 
-            echo -e "\${BLUE}[数据库] 增量合并说明：将把仓库自带全量脚本导入【临时数据库】，再向您已有「\$DB_NAME」库补建新表、mysqldump --insert-ignore 补缺失数据行；不会在「\$DB_NAME」上 DROP/整库替换。\${NC}"
-
             _xxgkami_embed_resolve_db_credentials_for_update
 
             if [ -z "\$DB_USER" ] || [ -z "\$DB_PWD" ]; then
@@ -3213,48 +3446,84 @@ while true; do
                 continue
             fi
 
-            SQL_FILE="\$(_xxgkami_embed_pick_seed_sql_path_for_update)"
-            
-            echo -e "\${YELLOW}[数据库] 确保业务库 \$DB_NAME 存在...\${NC}"
+            echo -e "\${YELLOW}[数据库] 确保业务库 \$DB_NAME 可访问...\${NC}"
             mysql -u"\$DB_USER" -p"\$DB_PWD" -e "CREATE DATABASE IF NOT EXISTS \$DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" || {
                 echo -e "\${RED}[数据库] 无法连接或权限不足（CREATE DATABASE）；请检查账号密码。\${NC}"
                 continue
             }
-            
-            if [ -f "\$SQL_FILE" ]; then
-                echo -e "\${YELLOW}[数据库] 正在执行增量合并...\${NC}"
+
+            SQL_FILE="\$(_xxgkami_embed_pick_seed_sql_path_for_update)"
+
+            _KAMI_EX=0
+            _TBL_CT=0
+            _sch=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -s -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='\$DB_NAME'" 2>/dev/null | tr -dc '0-9')
+            _sch=\${_sch:-0}
+            [ "\${_sch:-0}" -ge 1 ] && _KAMI_EX=1
+            if [ "\$_KAMI_EX" -eq 1 ]; then
+                _TBL_CT=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -s -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='\$DB_NAME' AND TABLE_TYPE='BASE TABLE'" 2>/dev/null | tr -dc '0-9')
+                _TBL_CT=\${_TBL_CT:-0}
+            fi
+
+            if [ "\$_KAMI_EX" -eq 0 ]; then
+                echo -e "\${GREEN}[数据库] 未发现业务库 \$DB_NAME ，将新建并全量导入。\${NC}"
+            elif [ "\${_TBL_CT:-0}" -eq 0 ]; then
+                echo -e "\${YELLOW}[数据库] 库 \$DB_NAME 已存在但无业务表，将在该库内全量导入。\${NC}"
+            else
+                echo -e "\${YELLOW}[数据库] 库 \$DB_NAME 已存在且有 \${_TBL_CT} 张业务表。\${NC}"
+            fi
+
+            _xxgkami_embed_prompt_existing_database_strategy "\$DB_USER" "\$DB_PWD" "\$DB_NAME" "\$_KAMI_EX" "\$_TBL_CT"
+
+            _EPW="\${XXGKAMI_MYSQL_EFFECTIVE_PASS:-\$DB_PWD}"
+            _ACT="\${XXGKAMI_DB_ACTION:-direct}"
+            if [ "\$_ACT" = "drop_import" ] && [ -n "\$_EPW" ]; then
+                DB_PWD="\$_EPW"
+            fi
+
+            if [ ! -f "\$SQL_FILE" ]; then
+                echo -e "\${YELLOW}[数据库] 未找到 \$SQL_FILE ，跳过库操作（后端仍将按 JDBC 编译）。\${NC}"
+            elif [ "\$_ACT" = "merge" ]; then
+                echo -e "\${YELLOW}[数据库] 智能更新：临时库合并 → \$DB_NAME …\${NC}"
                 TEMP_DB="kami_update_temp_\$(date +%s)"
-                echo -e "\${BLUE}[数据库] 创建临时库 \$TEMP_DB...\${NC}"
-                mysql -u"\$DB_USER" -p"\$DB_PWD" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" || {
-                    echo -e "\${RED}[数据库] 创建临时库失败，跳过库合并。\${NC}"
+                mysql -u"\$DB_USER" -p"\$_EPW" -e "CREATE DATABASE IF NOT EXISTS \$DB_NAME DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null || true
+                echo -e "\${BLUE}[数据库] 创建临时库 \$TEMP_DB …\${NC}"
+                mysql -u"\$DB_USER" -p"\$_EPW" -e "CREATE DATABASE \$TEMP_DB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;" || {
+                    echo -e "\${RED}[数据库] 创建临时库失败。\${NC}"
                     TEMP_DB=""
                 }
                 if [ -n "\$TEMP_DB" ]; then
-                    echo -e "\${BLUE}[数据库] 向临时库导入仓库脚本...\${NC}"
-                    if mysql -u"\$DB_USER" -p"\$DB_PWD" "\$TEMP_DB" < "\$SQL_FILE"; then
-                        echo -e "\${BLUE}[数据库] 对比表并按需补齐...\${NC}"
-                        TEMP_TABLES=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
+                    echo -e "\${BLUE}[数据库] 向临时库导入 \$SQL_FILE …\${NC}"
+                    if mysql -u"\$DB_USER" -p"\$_EPW" "\$TEMP_DB" < "\$SQL_FILE"; then
+                        echo -e "\${BLUE}[数据库] 对比表并按需合并…\${NC}"
+                        TEMP_TABLES=\$(mysql -u"\$DB_USER" -p"\$_EPW" -N -B -e "SHOW TABLES FROM \$TEMP_DB")
                         for TABLE in \$TEMP_TABLES; do
-                            TABLE_EXISTS=\$(mysql -u"\$DB_USER" -p"\$DB_PWD" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
+                            TABLE_EXISTS=\$(mysql -u"\$DB_USER" -p"\$_EPW" -N -B -e "SELECT count(*) FROM information_schema.tables WHERE table_schema = '\$DB_NAME' AND table_name = '\$TABLE';")
                             if [ "\$TABLE_EXISTS" -eq 0 ]; then
-                                echo -e "\${GREEN}[数据库] 新增表 \$TABLE ，正在写入...\${NC}"
-                                mysqldump -u"\$DB_USER" -p"\$DB_PWD" "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$DB_PWD" "\$DB_NAME"
+                                echo -e "\${GREEN}[数据库] 新增表 \$TABLE ，正在写入…\${NC}"
+                                mysqldump -u"\$DB_USER" -p"\$_EPW" "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$_EPW" "\$DB_NAME"
                             else
-                                mysqldump -u"\$DB_USER" -p"\$DB_PWD" --no-create-info --insert-ignore --complete-insert "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$DB_PWD" "\$DB_NAME"
+                                mysqldump -u"\$DB_USER" -p"\$_EPW" --no-create-info --insert-ignore --complete-insert "\$TEMP_DB" "\$TABLE" | mysql -u"\$DB_USER" -p"\$_EPW" "\$DB_NAME"
                             fi
                         done
-                        echo -e "\${GREEN}[数据库] 增量合并完成。\${NC}"
+                        echo -e "\${GREEN}[数据库] 智能更新完成。\${NC}"
                     else
-                        echo -e "\${RED}[数据库] 脚本导入临时库失败，已跳过合并（\$SQL_FILE）。\${NC}"
+                        echo -e "\${RED}[数据库] 脚本导入临时库失败（\$SQL_FILE）。\${NC}"
                     fi
-                    echo -e "\${BLUE}[数据库] 删除临时库 \$TEMP_DB...\${NC}"
-                    mysql -u"\$DB_USER" -p"\$DB_PWD" -e "DROP DATABASE \$TEMP_DB;" 2>/dev/null || true
+                    echo -e "\${BLUE}[数据库] 删除临时库 \$TEMP_DB …\${NC}"
+                    mysql -u"\$DB_USER" -p"\$_EPW" -e "DROP DATABASE \$TEMP_DB;" 2>/dev/null || true
                 fi
-            else
-                echo -e "\${YELLOW}[数据库] 未找到 \$SQL_FILE ，跳过合并（后端仍将按 JDBC 编译）。\${NC}"
+            elif [ "\$_ACT" = "drop_import" ] || [ "\$_ACT" = "direct" ]; then
+                if [ "\$_ACT" = "drop_import" ]; then
+                    echo -e "\${YELLOW}[数据库] 删除原库并重建 \$DB_NAME …\${NC}"
+                    mysql -u"\$DB_USER" -p"\$_EPW" -e "DROP DATABASE IF EXISTS \$DB_NAME; CREATE DATABASE \$DB_NAME DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" || echo -e "\${RED}[数据库] DROP/CREATE 失败。\${NC}"
+                else
+                    mysql -u"\$DB_USER" -p"\$_EPW" -e "CREATE DATABASE IF NOT EXISTS \$DB_NAME DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" 2>/dev/null || true
+                fi
+                echo -e "\${GREEN}[数据库] 全量导入 \$SQL_FILE → \$DB_NAME …\${NC}"
+                mysql -u"\$DB_USER" -p"\$_EPW" "\$DB_NAME" < "\$SQL_FILE" || echo -e "\${RED}[数据库] 全量导入失败。\${NC}"
             fi
             
-            _xxgkami_embed_refresh_backend_datasource_env "\$DB_USER" "\$DB_PWD"
+            _xxgkami_embed_refresh_backend_datasource_env "\$DB_USER" "\$_EPW"
             echo -e "\${GREEN}已刷新 /etc/xxgkami/backend-datasource.env\${NC}"
             
             echo -e "\${YELLOW}[后端] 与安装对齐：Maven 阿里云镜像、bake JDBC、mvn package、fat JAR 复制到 \$DEPLOY_ROOT...\${NC}"
