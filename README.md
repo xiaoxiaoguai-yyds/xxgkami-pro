@@ -39,7 +39,7 @@ curl -O https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/hea
 
 **脚本功能：**
 - ✅ 自动检测网络环境（GitHub/Gitee 源自动切换）
-- ✅ 自动安装 JDK 17, MySQL 8.0, Nginx, Node.js 环境
+- ✅ 自动安装 JDK 20, MySQL 8.0, Nginx, Node.js 环境
 - ✅ 自动编译前后端代码并配置 Systemd 开机自启
 - ✅ 自动配置 Nginx 反向代理与静态资源托管
 
@@ -69,7 +69,7 @@ curl -O https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/hea
 1. **下载编译制品**：从 [Releases](https://github.com/xiaoxiaoguai-yyds/xxgkami-pro/releases) 下载最新的 `backend.jar` 和 `dist.zip`。
 2. **后端部署**：
    - 在宝塔“Java项目”中添加项目。
-   - 上传 `backend.jar`，选择 JDK 17。
+   - 上传 `backend.jar`，选择 JDK 20。
    - 配置端口 `8080`，并设置数据库连接信息（`application.properties`）。
 3. **前端部署**：
    - 在宝塔“网站”中添加静态站点。
@@ -87,7 +87,7 @@ curl -O https://raw.githubusercontent.com/xiaoxiaoguai-yyds/xxgkami-pro/refs/hea
 
 适用于开发者或需要深度定制的场景。
 
-**前提条件：** JDK 17+, Maven 3.8+, Node.js 18+, MySQL 8.0+
+**前提条件：** JDK 20+, Maven 3.8+, Node.js 18+, MySQL 8.0+
 
 1. **克隆代码**
    ```bash
